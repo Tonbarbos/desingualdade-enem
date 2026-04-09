@@ -45,7 +45,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data
 def load_data():
     try:
         df = pd.read_csv("dados_compilados.csv")
