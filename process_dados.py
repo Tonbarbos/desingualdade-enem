@@ -1,20 +1,32 @@
 """
 process_duplo.py
 Gera dois arquivos CSV:
-  - dados_publico.csv  → apenas candidatos de escola pública (Federal=1, Estadual=2, Municipal=3)
-  - dados_todos.csv    → todos os candidatos (pública + privada)
+  - dados_publico.csv  → apenas candidatos de escola pública
+  - dados_todos.csv    → todos os candidatos
 
-Execute na pasta raiz do projeto.
+IMPORTANTE: filtra por SG_UF_PROVA == 'ES' (candidatos que fizeram a prova no ES)
+e agrupa por NO_MUNICIPIO_PROVA (município onde fez a prova).
+Isso captura muito mais candidatos do que filtrar por escola (SG_UF_ESC),
+e é metodologicamente mais correto para cruzar com indicadores socioeconômicos
+municipais, pois representa quem estava vivendo naquele município no momento do exame.
+
+Fontes de dados:
+  - ENEM 2024: microdados INEP
+  - Atlas Brasil: indicadores socioeconômicos Censo 2010
+  - SIOPE 2023: gastos educacionais municipais (FNDE)
+  - CadÚnico 2024: IVCAD e subíndices de vulnerabilidade (Observatório MDS)
+    Download: paineis.mds.gov.br → Tabela → Exportar → Famílias_e_pessoas_por_municipio_ES.xlsx
 """
 
 import pandas as pd
 import unicodedata
 from scipy import stats
 
-ENEM_PATH  = r"microdados_enem_2024\DADOS\RESULTADOS_2024.csv"
-ATLAS_PATH = "base correta.xlsx"
-EDU_PATH   = "municipios-educacao.csv"
-UF_ALVO    = "ES"
+ENEM_PATH    = r"microdados_enem_2024\DADOS\RESULTADOS_2024.csv"
+ATLAS_PATH   = "base correta.xlsx"
+EDU_PATH     = "municipios-educacao.csv"
+CADUNICO_PATH= "Familias_e_pessoas_por_municipio_ES.xlsx"  # exportado do Observatório CadÚnico
+UF_ALVO      = "ES"
 
 def normalize(s):
     if pd.isna(s): return ""
@@ -30,8 +42,6 @@ def load_atlas():
     df['municipio_norm'] = df['Nome_Municipio'].apply(normalize)
 
     col_map = {
-        # NOTA: 'Renda per capita 2010' foi removida — o Atlas exportou essa coluna
-        # com escala invertida (correlação com IDHM_R = -0.88). Usar IDHM_R como proxy de renda.
         'Índice de Gini 2010':                                                                              'GINI',
         'Expectativa de anos de estudo aos 18 anos de idade 2010':                                          'E_ANOSESTUDO',
         '% de 25 anos ou mais de idade com ensino fundamental completo 2010':                               'PERC_FUND_COMP',
@@ -44,17 +54,14 @@ def load_atlas():
         '% de crianças que vivem em domicílios em que nenhum dos moradores tem o ensino fundamental completo 2010': 'CRIAN_VULN',
         '% de 15 a 24 anos de idade que não estudam nem trabalham em domicílios vulneráveis à pobreza 2010': 'NEET_VULN',
     }
-
     df = df.rename(columns=col_map)
     keep = ['municipio_norm', 'Nome_Municipio', 'GINI', 'E_ANOSESTUDO',
             'PERC_FUND_COMP', 'PERC_MED_COMP', 'T_FREQ1517_FUND', 'TX_ANALF',
             'IDHM_R', 'IDHM_E', 'IDHM', 'CRIAN_VULN', 'NEET_VULN']
     df = df[[c for c in keep if c in df.columns]]
-
     for c in df.select_dtypes('object').columns:
         if c not in ['municipio_norm', 'Nome_Municipio']:
             df[c] = pd.to_numeric(df[c], errors='coerce')
-
     return df
 
 # ── SIOPE ─────────────────────────────────────────────────────────
@@ -75,48 +82,76 @@ def load_edu():
 # ── ENEM ──────────────────────────────────────────────────────────
 def load_enem():
     print("  Lendo microdados ENEM (pode demorar)...")
-    cols = ['SG_UF_ESC', 'NO_MUNICIPIO_ESC', 'TP_DEPENDENCIA_ADM_ESC',
-            'NU_NOTA_CN', 'NU_NOTA_CH', 'NU_NOTA_LC', 'NU_NOTA_MT', 'NU_NOTA_REDACAO']
+    cols = [
+        'SG_UF_PROVA',           # UF onde fez a prova — usado para filtrar ES
+        'NO_MUNICIPIO_PROVA',     # Município onde fez a prova — usado para agrupar
+        'TP_DEPENDENCIA_ADM_ESC', # Tipo de escola onde estudou o ensino médio
+        'NU_NOTA_CN', 'NU_NOTA_CH', 'NU_NOTA_LC', 'NU_NOTA_MT', 'NU_NOTA_REDACAO',
+    ]
     chunks = []
     for chunk in pd.read_csv(ENEM_PATH, encoding='latin1', sep=';',
                              chunksize=500_000, usecols=cols):
-        chunk = chunk[chunk['SG_UF_ESC'] == UF_ALVO].dropna(subset=['NO_MUNICIPIO_ESC'])
+        # Filtra candidatos que fizeram a prova no ES
+        chunk = chunk[chunk['SG_UF_PROVA'] == UF_ALVO].dropna(subset=['NO_MUNICIPIO_PROVA'])
         if not chunk.empty:
             chunks.append(chunk)
     df = pd.concat(chunks, ignore_index=True)
     notas = ['NU_NOTA_CN', 'NU_NOTA_CH', 'NU_NOTA_LC', 'NU_NOTA_MT', 'NU_NOTA_REDACAO']
     df['NOTA_MEDIA'] = df[notas].mean(axis=1)
+    print(f"  Total: {len(df):,} candidatos que fizeram prova no ES")
     return df
 
 def agregar(df_enem):
-    agg = df_enem.groupby('NO_MUNICIPIO_ESC').agg(
+    agg = df_enem.groupby('NO_MUNICIPIO_PROVA').agg(
         NU_NOTA_CN      = ('NU_NOTA_CN',      'mean'),
         NU_NOTA_CH      = ('NU_NOTA_CH',      'mean'),
         NU_NOTA_LC      = ('NU_NOTA_LC',      'mean'),
         NU_NOTA_MT      = ('NU_NOTA_MT',      'mean'),
         NU_NOTA_REDACAO = ('NU_NOTA_REDACAO', 'mean'),
         NOTA_MEDIA      = ('NOTA_MEDIA',      'mean'),
-        QTD_CANDIDATOS  = ('NO_MUNICIPIO_ESC','count'),
+        QTD_CANDIDATOS  = ('NO_MUNICIPIO_PROVA', 'count'),
         PERC_ESCOLA_PUB = ('TP_DEPENDENCIA_ADM_ESC',
-                           lambda x: (x.isin([1,2,3])).mean() * 100),
+                           lambda x: (x.isin([1, 2, 3])).mean() * 100),
     ).reset_index()
-    agg['municipio_norm'] = agg['NO_MUNICIPIO_ESC'].apply(normalize)
+    agg['municipio_norm'] = agg['NO_MUNICIPIO_PROVA'].apply(normalize)
     return agg
 
-def gerar_csv(df_atlas, df_edu, df_enem, output_path, label):
+def load_cadunico():
+    df = pd.read_excel(CADUNICO_PATH)
+    df = df.rename(columns={
+        'Cód. IBGE': 'cod_ibge',
+        'IVCAD': 'IVCAD',
+        'NC':  'IVCAD_NC',
+        'DPI': 'IVCAD_DPI',
+        'DCA': 'IVCAD_DCA',
+        'TQA': 'IVCAD_TQA',
+        'DR':  'IVCAD_DR',
+        'CH':  'IVCAD_CH',
+        '% relativo ao Censo 2022': 'IVCAD_COBERTURA',
+    })
+    df['municipio_norm'] = df['Município'].apply(normalize)
+    cols = ['municipio_norm', 'IVCAD', 'IVCAD_NC', 'IVCAD_DPI', 'IVCAD_DCA',
+            'IVCAD_TQA', 'IVCAD_DR', 'IVCAD_CH', 'IVCAD_COBERTURA']
+    print(f"  CadÚnico: {len(df)} municípios")
+    return df[cols]
+
+def gerar_csv(df_atlas, df_edu, df_cad, df_enem, output_path, label):
     agg = agregar(df_enem)
     df  = df_atlas.merge(df_edu, on='municipio_norm', how='left')
+    df  = df.merge(df_cad, on='municipio_norm', how='left')
     df  = df.merge(agg, on='municipio_norm', how='left')
     df.to_csv(output_path, index=False)
-    print(f"  Salvo: {output_path}  ({df['NOTA_MEDIA'].notna().sum()} municípios com nota)")
+    n_com_nota = df['NOTA_MEDIA'].notna().sum()
+    print(f"  Salvo: {output_path}  ({n_com_nota} municípios com nota | {int(df['QTD_CANDIDATOS'].sum()):,} candidatos)")
 
     print(f"  Correlações com NOTA_MEDIA [{label}]:")
-    for col in ['IDHM','IDHM_R','IDHM_E','GINI','TX_ANALF','NEET_VULN',
-                'CRIAN_VULN','E_ANOSESTUDO','EDU_Perc_Aplicacao','EDU_Investimento_Aluno']:
+    for col in ['IDHM', 'IDHM_R', 'IDHM_E', 'GINI', 'TX_ANALF', 'NEET_VULN',
+                'CRIAN_VULN', 'E_ANOSESTUDO', 'EDU_Perc_Aplicacao', 'EDU_Investimento_Aluno',
+                'IVCAD', 'IVCAD_DR', 'IVCAD_TQA', 'IVCAD_NC']:
         sub = df[['NOTA_MEDIA', col]].dropna()
         if len(sub) < 5: continue
         r, p = stats.pearsonr(sub['NOTA_MEDIA'].astype(float), sub[col].astype(float))
-        print(f"    {'✓' if p<0.05 else '✗'} r={r:+.3f}  p={p:.3f}  {col}")
+        print(f"    {'✓' if p < 0.05 else '✗'} r={r:+.3f}  p={p:.3f}  n={len(sub)}  {col}")
 
 if __name__ == '__main__':
     print("Carregando Atlas Brasil...")
@@ -125,14 +160,19 @@ if __name__ == '__main__':
     print("Carregando SIOPE 2023...")
     df_edu = load_edu()
 
+    print("Carregando CadÚnico 2024...")
+    df_cad = load_cadunico()
+
     print("Carregando ENEM 2024...")
     df_enem_todos = load_enem()
 
     print("\n[1/2] Gerando dados_todos.csv (pública + privada)...")
-    gerar_csv(df_atlas, df_edu, df_enem_todos, 'dados_todos.csv', 'todos')
+    gerar_csv(df_atlas, df_edu, df_cad, df_enem_todos, 'dados_todos.csv', 'todos')
 
     print("\n[2/2] Gerando dados_publico.csv (apenas escola pública)...")
-    df_enem_pub = df_enem_todos[df_enem_todos['TP_DEPENDENCIA_ADM_ESC'].isin([1, 2, 3])].copy()
-    gerar_csv(df_atlas, df_edu, df_enem_pub, 'dados_publico.csv', 'pública')
+    df_enem_pub = df_enem_todos[
+        df_enem_todos['TP_DEPENDENCIA_ADM_ESC'].isin([1, 2, 3])
+    ].copy()
+    gerar_csv(df_atlas, df_edu, df_cad, df_enem_pub, 'dados_publico.csv', 'pública')
 
-    print("\nPronto! Suba os dois CSVs para o GitHub.")
+    print("\nPronto! Suba os CSVs e o arquivo do CadÚnico para o GitHub.")

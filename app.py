@@ -42,6 +42,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ── SESSION STATE — preserva seleções ao trocar filtros ───────────
+for key, default in {
+    'tipo_escola': "Apenas escola pública",
+    'min_cand':    30,
+    'cat_x':       'DESIGUALDADE (Censo 2010)',
+    'cat_y':       'NOTAS DO ENEM',
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
+
 # ── FILTROS GLOBAIS ───────────────────────────────────────────────
 st.title("🎓 Desigualdade Social e Desempenho no ENEM — Espírito Santo 2024")
 st.markdown(
@@ -60,7 +70,7 @@ with f1:
     )
 with f2:
     if tipo_escola == "Apenas escola pública":
-        st.markdown('<div class="filter-banner">📌 <b>Escola pública</b> (Federal, Estadual e Municipal — TP_DEPENDENCIA_ADM_ESC ∈ {1,2,3}). Recomendado para comparações entre municípios — elimina o viés de concentração de escolas privadas em municípios mais ricos.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="filter-banner">📌 <b>Escola pública</b> (Federal, Estadual e Municipal). Recomendado para comparações entre municípios — elimina o viés de concentração de escolas privadas em municípios mais ricos.</div>', unsafe_allow_html=True)
     else:
         st.markdown('<div class="filter-banner">⚠️ <b>Todos os candidatos.</b> Municípios com mais escolas privadas tendem a ter notas médias mais altas, o que pode distorcer correlações socioeconômicas.</div>', unsafe_allow_html=True)
 
@@ -79,11 +89,11 @@ if df_raw is None:
     st.error(f"Arquivo **{arquivo}** não encontrado. Execute `process_duplo.py` para gerar os dados.")
     st.stop()
 
-# ── FILTRO DE CANDIDATOS MÍNIMOS ──────────────────────────────────
 st.markdown("---")
 min_cand = st.slider(
     "👥 Mínimo de candidatos por município:",
-    min_value=10, max_value=300, value=30, step=10,
+    min_value=10, max_value=300, step=10,
+    key="min_cand",
     help="Municípios com poucos candidatos têm nota média instável e podem distorcer correlações."
 )
 
@@ -93,13 +103,14 @@ excluidos = len(df_raw) - len(df)
 if excluidos > 0:
     st.markdown(
         f'<div class="warn-banner">⚠️ <b>{excluidos} município(s) excluído(s)</b> por ter menos de {min_cand} candidatos. '
-        f'Restam <b>{len(df)} municípios</b> na análise.</div>',
+        f'Restam <b>{len(df)} municípios</b> na análise. '
+        f'<b>Atenção:</b> filtros muito altos podem deixar poucos municípios e tornar correlações instáveis.</div>',
         unsafe_allow_html=True
     )
 
 st.markdown("---")
 
-# ── DICIONÁRIO DE INDICADORES ─────────────────────────────────────
+# ── DICIONÁRIO DE INDICADORES — sem categoria PARTICIPAÇÃO ────────
 INDICATORS_DICT = {
     'NOTAS DO ENEM': {
         'Nota Média Geral':  'NOTA_MEDIA',
@@ -110,11 +121,11 @@ INDICATORS_DICT = {
         'Nota Natureza':     'NU_NOTA_CN',
     },
     'DESIGUALDADE (Censo 2010)': {
-        'Índice de Gini':                           'GINI',
-        'Taxa de Analfabetismo (15+ anos)':         'TX_ANALF',
-        '% Crianças em Dom. Sem Ens. Fundamental':  'CRIAN_VULN',
-        '% 15-24 anos Nem Estuda Nem Trabalha':     'NEET_VULN',
-        '% de 15-17 ainda no Ensino Fundamental':   'T_FREQ1517_FUND',
+        'Índice de Gini':                          'GINI',
+        'Taxa de Analfabetismo (15+ anos)':        'TX_ANALF',
+        '% Crianças em Dom. Sem Ens. Fundamental': 'CRIAN_VULN',
+        '% 15-24 anos Nem Estuda Nem Trabalha':    'NEET_VULN',
+        '% de 15-17 ainda no Ensino Fundamental':  'T_FREQ1517_FUND',
     },
     'EDUCAÇÃO (Censo 2010)': {
         'Expectativa de Anos de Estudo (18 anos)':      'E_ANOSESTUDO',
@@ -133,10 +144,6 @@ INDICATORS_DICT = {
         'Total de Alunos Matriculados':         'EDU_Alunos',
         'Receita FUNDEB (R$)':                  'EDU_ReceitaFUNDEB',
     },
-    'PARTICIPAÇÃO (ENEM 2024)': {
-        '% Candidatos de Escola Pública': 'PERC_ESCOLA_PUB',
-        'Total de Candidatos':            'QTD_CANDIDATOS',
-    },
 }
 
 available_metrics = {}
@@ -148,14 +155,22 @@ for cat, items in INDICATORS_DICT.items():
             available_metrics[dlabel] = col
             item_categories[dlabel]   = cat
 
-# ── HELPER: safe scatter df sem colunas duplicadas ────────────────
+# ── HELPERS ───────────────────────────────────────────────────────
 def safe_scatter_df(df, x_col, y_col, extra_cols=None):
-    """Retorna df com colunas únicas para uso no px.scatter."""
     base = ['Nome_Municipio', 'QTD_CANDIDATOS']
     if extra_cols:
         base += [c for c in extra_cols if c not in [x_col, y_col] and c in df.columns]
-    all_cols = list(dict.fromkeys([x_col, y_col] + base))  # preserva ordem, remove dupes
+    all_cols = list(dict.fromkeys([x_col, y_col] + base))
     return df[all_cols].dropna().reset_index(drop=True)
+
+def corr_label(r, p):
+    """Retorna emoji + descrição para o dropdown."""
+    if abs(r) < 0.3:    return "↔", "Fraca"
+    if r > 0:           return "🔺", "Positiva"
+    return "🔻", "Negativa"
+
+def sig_icon(p):
+    return "✅" if p < 0.05 else "❌"
 
 # ── CARDS DE OVERVIEW ─────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
@@ -186,25 +201,31 @@ with tab1:
     cx, cy = st.columns(2)
     with cx:
         st.markdown("<p style='color:#94A3B8;margin-bottom:0'>Eixo X (variável independente):</p>", unsafe_allow_html=True)
-        cat_x   = st.selectbox("Cat X:", list(INDICATORS_DICT.keys()), key='cat_x', label_visibility="collapsed")
-        opts_x  = {k: v for k, v in INDICATORS_DICT[cat_x].items() if v in df.columns and df[v].count() > 1}
+        # FIX 1: usa session_state para preservar seleção ao trocar filtro de escola
+        cat_x_idx = list(INDICATORS_DICT.keys()).index(st.session_state['cat_x']) \
+                    if st.session_state['cat_x'] in INDICATORS_DICT else 0
+        cat_x   = st.selectbox("Cat X:", list(INDICATORS_DICT.keys()),
+                                index=cat_x_idx, key='cat_x', label_visibility="collapsed")
+        opts_x  = {k: v for k, v in INDICATORS_DICT[cat_x].items()
+                   if v in df.columns and df[v].count() > 1}
         label_x = st.selectbox("Ind X:", list(opts_x.keys()), key='ind_x', label_visibility="collapsed")
         x_col   = opts_x[label_x]
 
     with cy:
         st.markdown("<p style='color:#94A3B8;margin-bottom:0'>Eixo Y (variável dependente):</p>", unsafe_allow_html=True)
         cats_y      = [c for c in INDICATORS_DICT.keys() if c != cat_x]
-        default_idx = cats_y.index('NOTAS DO ENEM') if 'NOTAS DO ENEM' in cats_y else 0
-        cat_y       = st.selectbox("Cat Y:", cats_y, index=default_idx, key='cat_y', label_visibility="collapsed")
+        cat_y_default = st.session_state['cat_y'] if st.session_state['cat_y'] in cats_y else cats_y[0]
+        default_idx = cats_y.index(cat_y_default)
+        cat_y       = st.selectbox("Cat Y:", cats_y, index=default_idx,
+                                   key='cat_y', label_visibility="collapsed")
 
         opts_y = {}
         for lbl, col in INDICATORS_DICT[cat_y].items():
             if col not in df.columns or df[col].count() <= 1: continue
             r = df[x_col].corr(df[col])
             if pd.isna(r): continue
-            icon     = "🧊" if abs(r) < 0.3 else ("🔻" if r < 0 else "🚀")
-            strength = "Fraca" if abs(r) < 0.3 else ("Negativa" if r < 0 else "Positiva")
-            opts_y[f"{icon} {lbl} ({strength})"] = col
+            arrow, strength = corr_label(r, 1)  # p não importa aqui, só direção
+            opts_y[f"{arrow} {lbl} ({strength})"] = col
 
         if not opts_y:
             st.warning("Sem dados correlacionáveis nesta categoria.")
@@ -216,16 +237,16 @@ with tab1:
 
     # Nota sobre % aplicação em educação
     if x_col == 'EDU_Perc_Aplicacao' or y_col == 'EDU_Perc_Aplicacao':
-        perc_min = df['EDU_Perc_Aplicacao'].min() if 'EDU_Perc_Aplicacao' in df.columns else 0
-        perc_max = df['EDU_Perc_Aplicacao'].max() if 'EDU_Perc_Aplicacao' in df.columns else 0
-        abaixo   = (df['EDU_Perc_Aplicacao'] < 25).sum() if 'EDU_Perc_Aplicacao' in df.columns else 0
-        st.markdown(
-            f'<div class="info-banner">ℹ️ <b>% de Impostos Aplicados em Educação:</b> '
-            f'A Constituição Federal exige mínimo de <b>25%</b> para municípios. '
-            f'No ES 2023: mínimo {perc_min:.1f}% | máximo {perc_max:.1f}% | '
-            f'<b>{abaixo} município(s) abaixo do mínimo constitucional.</b></div>',
-            unsafe_allow_html=True
-        )
+        if 'EDU_Perc_Aplicacao' in df.columns:
+            abaixo = (df['EDU_Perc_Aplicacao'] < 25).sum()
+            st.markdown(
+                f'<div class="info-banner">ℹ️ <b>% de Impostos Aplicados em Educação:</b> '
+                f'A Constituição Federal exige mínimo de <b>25%</b> para municípios. '
+                f'No ES 2023: mín {df["EDU_Perc_Aplicacao"].min():.1f}% | '
+                f'máx {df["EDU_Perc_Aplicacao"].max():.1f}% | '
+                f'<b>{abaixo} município(s) abaixo do mínimo constitucional.</b></div>',
+                unsafe_allow_html=True
+            )
 
     sub          = df[[x_col, y_col]].dropna()
     r_val, p_val = stats.pearsonr(sub[x_col], sub[y_col])
@@ -244,21 +265,18 @@ with tab1:
     if abs(r_val) < 0.3:
         st.markdown(
             '<div class="warn-banner">💡 <b>Correlação fraca</b> pode ter causas metodológicas: '
-            '(1) escola pública homogeneíza as notas entre municípios; '
-            '(2) municípios com poucos candidatos introduzem ruído — aumente o filtro de candidatos mínimos; '
-            '(3) relação pode não ser linear. Correlações fracas também são resultados válidos e discutíveis.</div>',
+            '(1) filtro de escola pública homogeneíza as notas, comprimindo a variação entre municípios; '
+            '(2) filtro de candidatos mínimos muito alto reduz a amostra e aumenta instabilidade; '
+            '(3) a relação pode não ser linear. Correlações fracas também são resultados válidos e discutíveis no trabalho.</div>',
             unsafe_allow_html=True
         )
 
-    # FIX DuplicateError: safe_scatter_df garante colunas únicas
-    use_idhm   = 'IDHM' in df.columns and x_col != 'IDHM' and y_col != 'IDHM'
-    extra      = ['IDHM'] if use_idhm else []
-    hover_df   = safe_scatter_df(df, x_col, y_col, extra)
+    use_idhm = 'IDHM' in df.columns and x_col != 'IDHM' and y_col != 'IDHM'
+    hover_df = safe_scatter_df(df, x_col, y_col, ['IDHM'] if use_idhm else [])
 
     fig = px.scatter(
         hover_df, x=x_col, y=y_col,
-        hover_name="Nome_Municipio",
-        size="QTD_CANDIDATOS",
+        hover_name="Nome_Municipio", size="QTD_CANDIDATOS",
         color="IDHM" if use_idhm else None,
         color_continuous_scale=px.colors.sequential.Tealgrn,
         trendline="ols",
@@ -266,25 +284,20 @@ with tab1:
         title=f"{y_axis_label} × {label_x}  |  r = {r_val:+.3f}  |  R² = {r2:.1%}",
         template="plotly_dark",
     )
+    for ax, col in [('y', y_col), ('x', x_col)]:
+        if col == 'EDU_Perc_Aplicacao':
+            if ax == 'y':
+                fig.add_hline(y=25, line_dash="dash", line_color="#F97316",
+                              annotation_text="Mínimo constitucional (25%)", annotation_position="top right")
+            else:
+                fig.add_vline(x=25, line_dash="dash", line_color="#F97316",
+                              annotation_text="Mínimo constitucional (25%)", annotation_position="top right")
     fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                       font=dict(color="#E2E8F0"), height=520)
-
-    # Linha de referência para % aplicação em educação
-    if y_col == 'EDU_Perc_Aplicacao':
-        fig.add_hline(y=25, line_dash="dash", line_color="#F97316",
-                      annotation_text="Mínimo constitucional (25%)",
-                      annotation_position="top right")
-    if x_col == 'EDU_Perc_Aplicacao':
-        fig.add_vline(x=25, line_dash="dash", line_color="#F97316",
-                      annotation_text="Mínimo constitucional (25%)",
-                      annotation_position="top right")
-
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
     st.markdown("### 🗃️ Dados por Município")
-
-    # Mostrar % aplicação antes do valor absoluto
     disp = [c for c in ['Nome_Municipio', 'QTD_CANDIDATOS', 'PERC_ESCOLA_PUB', 'NOTA_MEDIA',
                          'IDHM', 'IDHM_R', 'IDHM_E', 'GINI', 'TX_ANALF', 'NEET_VULN',
                          'EDU_Perc_Aplicacao', 'EDU_Investimento_Aluno', 'EDU_Aplicacao_Total']
@@ -323,15 +336,29 @@ with tab2:
 with tab3:
     st.markdown("### 🧪 Testes Estatísticos")
 
+    # Regressão Linear
     st.markdown("#### 📈 Regressão Linear Simples")
     r_c1, r_c2 = st.columns(2)
     with r_c1:
         reg_cats_x = [c for c in INDICATORS_DICT if c != 'NOTAS DO ENEM']
         reg_cat_x  = st.selectbox("Variável independente (X):", reg_cats_x, key='reg_cat_x')
-        reg_opts_x = {k: v for k, v in INDICATORS_DICT[reg_cat_x].items()
-                      if v in df.columns and df[v].count() > 1}
-        reg_lbl_x  = st.selectbox("Indicador X:", list(reg_opts_x.keys()), key='reg_ind_x')
-        reg_x      = reg_opts_x[reg_lbl_x]
+
+        # FIX 3: adiciona ícone de significância nos indicadores do dropdown
+        reg_opts_x_raw = {k: v for k, v in INDICATORS_DICT[reg_cat_x].items()
+                          if v in df.columns and df[v].count() > 1}
+        reg_opts_x = {}
+        for lbl, col in reg_opts_x_raw.items():
+            sub_r = df[['NOTA_MEDIA', col]].dropna()
+            if len(sub_r) >= 5:
+                _, p_r = stats.pearsonr(sub_r['NOTA_MEDIA'], sub_r[col])
+                icon = sig_icon(p_r)
+            else:
+                icon = "❓"
+            reg_opts_x[f"{icon} {lbl}"] = col
+
+        reg_lbl_x = st.selectbox("Indicador X:", list(reg_opts_x.keys()), key='reg_ind_x')
+        reg_x     = reg_opts_x[reg_lbl_x]
+
     with r_c2:
         reg_opts_y = {k: v for k, v in INDICATORS_DICT['NOTAS DO ENEM'].items()
                       if v in df.columns and df[v].count() > 1}
@@ -352,16 +379,16 @@ with tab3:
     m4.metric("Coef. angular", f"{slope:.4f}")
 
     st.markdown(f"""
-    **Interpretação:** *{reg_lbl_x}* explica **{r2_reg:.1%}** da variação em *{reg_lbl_y}* entre os {len(reg_sub)} municípios.
+    **Interpretação:** *{reg_lbl_x.split(' ', 1)[-1]}* explica **{r2_reg:.1%}** da variação em *{reg_lbl_y}* entre os {len(reg_sub)} municípios.
     {'Resultado estatisticamente significativo (p < 0,05).' if p_reg < 0.05 else 'Resultado **não** estatisticamente significativo (p ≥ 0,05).'}
-    A cada unidade de aumento em *{reg_lbl_x}*, a nota varia em média **{slope:+.4f}** pontos.
+    A cada unidade de aumento em *{reg_lbl_x.split(' ', 1)[-1]}*, a nota varia em média **{slope:+.4f}** pontos.
     """)
 
     reg_hover = safe_scatter_df(df, reg_x, reg_y)
     fig_reg = px.scatter(reg_hover, x=reg_x, y=reg_y, hover_name="Nome_Municipio",
                          size="QTD_CANDIDATOS", trendline="ols",
-                         labels={reg_x: reg_lbl_x, reg_y: reg_lbl_y},
-                         title=f"Regressão: {reg_lbl_y} ~ {reg_lbl_x}  |  R² = {r2_reg:.1%}  |  p = {p_reg:.4f}",
+                         labels={reg_x: reg_lbl_x.split(' ', 1)[-1], reg_y: reg_lbl_y},
+                         title=f"Regressão: {reg_lbl_y} ~ {reg_lbl_x.split(' ', 1)[-1]}  |  R² = {r2_reg:.1%}  |  p = {p_reg:.4f}",
                          template="plotly_dark")
     if reg_x == 'EDU_Perc_Aplicacao':
         fig_reg.add_vline(x=25, line_dash="dash", line_color="#F97316",
@@ -371,6 +398,8 @@ with tab3:
     st.plotly_chart(fig_reg, use_container_width=True)
 
     st.markdown("---")
+
+    # Teste t
     st.markdown("#### 🔬 Teste t — Comparação de Grupos")
     st.markdown("Compara a nota média entre municípios com **alto** e **baixo** valor de um indicador (divisão pela mediana).")
 
@@ -417,6 +446,8 @@ with tab3:
     st.plotly_chart(fig_t, use_container_width=True)
 
     st.markdown("---")
+
+    # Tabela completa de correlações
     st.markdown("#### 📋 Tabela de Correlações com a Nota Média Geral")
     rows = []
     for cat, items in INDICATORS_DICT.items():
@@ -437,13 +468,20 @@ with tab3:
 with tab4:
     st.markdown("### 🎯 Detecção de Outliers e Distribuição")
 
-    out_lbl     = st.selectbox("Indicador:", list(available_metrics.keys()), key='outlier1')
+    # FIX 4: opção de método de detecção de outliers
+    met_col, out_col_sel = st.columns([1, 3])
+    with met_col:
+        metodo = st.radio("Método:", ["IQR", "Z-score (>2σ)"], key="out_metodo",
+                          help="IQR: Q3+1.5×IQR. Z-score: valores a mais de 2 desvios padrões da média.")
+    with out_col_sel:
+        out_lbl     = st.selectbox("Indicador:", list(available_metrics.keys()), key='outlier1')
+
     out_col     = available_metrics[out_lbl]
     out_display = out_lbl.split('] ')[-1]
 
-    # FIX DuplicateError: seleciona colunas auxiliares só se forem diferentes de out_col
+    # FIX 6: garantir colunas únicas no df_out
     aux_cols = [c for c in ['Nome_Municipio', 'NOTA_MEDIA', 'IDHM', 'QTD_CANDIDATOS']
-                if c != out_col]
+                if c != out_col and c in df.columns]
     df_out = df[[out_col] + aux_cols].dropna(subset=[out_col]).reset_index(drop=True)
 
     cb, cbar = st.columns(2)
@@ -483,17 +521,29 @@ with tab4:
     sd4.metric("Mínimo",        f"{desc['min']:.2f}")
     sd5.metric("Máximo",        f"{desc['max']:.2f}")
 
-    st.markdown("#### Municípios Identificados como Outliers (método IQR)")
-    q1, q3  = df_out[out_col].quantile(0.25), df_out[out_col].quantile(0.75)
-    iqr     = q3 - q1
-    outliers = df_out[
-        (df_out[out_col] < q1 - 1.5*iqr) | (df_out[out_col] > q3 + 1.5*iqr)
-    ].reset_index(drop=True)
+    # FIX 4: dois métodos de detecção
+    st.markdown(f"#### Municípios Identificados como Outliers (método {metodo})")
+
+    if metodo == "IQR":
+        q1, q3  = df_out[out_col].quantile(0.25), df_out[out_col].quantile(0.75)
+        iqr     = q3 - q1
+        lim_inf = q1 - 1.5 * iqr
+        lim_sup = q3 + 1.5 * iqr
+        outliers = df_out[(df_out[out_col] < lim_inf) | (df_out[out_col] > lim_sup)].reset_index(drop=True)
+        st.caption(f"Limites IQR: [{lim_inf:.2f}, {lim_sup:.2f}]  |  Para {out_display}, um valor de {desc['max']:.2f} precisaria ultrapassar {lim_sup:.2f} para ser outlier pelo IQR.")
+    else:
+        mean_v = df_out[out_col].mean()
+        std_v  = df_out[out_col].std()
+        outliers = df_out[np.abs(df_out[out_col] - mean_v) > 2 * std_v].reset_index(drop=True)
+        st.caption(f"Limites Z-score: [{mean_v - 2*std_v:.2f}, {mean_v + 2*std_v:.2f}]  (média ± 2σ)")
 
     if outliers.empty:
-        st.info("Nenhum outlier detectado para este indicador.")
+        st.info(f"Nenhum outlier detectado pelo método {metodo} para este indicador.")
     else:
-        show = [c for c in ['Nome_Municipio', out_col, 'NOTA_MEDIA', 'IDHM', 'QTD_CANDIDATOS']
-                if c in outliers.columns]
-        st.dataframe(outliers[show].sort_values(out_col, ascending=False).reset_index(drop=True),
-                     use_container_width=True, hide_index=True)
+        # FIX 6: reset_index antes do sort_values para evitar ValueError
+        show_cols = [c for c in ['Nome_Municipio', out_col, 'NOTA_MEDIA', 'IDHM', 'QTD_CANDIDATOS'] if c in outliers.columns]
+        show = list(dict.fromkeys(show_cols)) # Remove duplicates while preserving order
+        st.dataframe(
+            outliers[show].reset_index(drop=True).sort_values(out_col, ascending=False).reset_index(drop=True),
+            use_container_width=True, hide_index=True
+        )
