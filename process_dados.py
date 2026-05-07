@@ -116,7 +116,36 @@ def agregar(df_enem):
     agg['municipio_norm'] = agg['NO_MUNICIPIO_PROVA'].apply(normalize)
     return agg
 
+def load_censo_escolar():
+    """
+    Lê a planilha do INEP com IDEB, Nota SAEB e Indicador de Rendimento
+    do ensino médio por município do ES (2023).
+    Download: inep.gov.br/educacao-basica/ideb/resultados
+    """
+    filepath = "divulgacao_ensino_medio_municipios_2023.ods"
+    df = pd.read_excel(filepath, engine='odf', header=8)
+    df = df.rename(columns={
+        df.columns[0]:  'SG_UF',
+        df.columns[2]:  'NO_MUNICIPIO',
+        df.columns[3]:  'REDE',
+        df.columns[27]: 'IND_REND_2023',
+        df.columns[38]: 'NOTA_MEDIA_SAEB_2023',
+        df.columns[43]: 'IDEB_2023',
+    })
+    df = df[df['SG_UF'] == 'ES'].copy()
+    df = df[df['REDE'] == 'Pública'].copy()
+    df['municipio_norm'] = df['NO_MUNICIPIO'].apply(normalize)
+    for col in ['IND_REND_2023', 'NOTA_MEDIA_SAEB_2023', 'IDEB_2023']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    print(f"  Censo Escolar: {len(df)} municípios ES (rede pública)")
+    return df[['municipio_norm', 'IND_REND_2023', 'NOTA_MEDIA_SAEB_2023', 'IDEB_2023']]
+
+# ── CADUNICO ──────────────────────────────────────────────────────
 def load_cadunico():
+    """
+    Lê a planilha exportada do Observatório CadÚnico com IVCAD por município.
+    Download: paineis.mds.gov.br → Tabela → Exportar
+    """
     df = pd.read_excel(CADUNICO_PATH)
     df = df.rename(columns={
         'Cód. IBGE': 'cod_ibge',
@@ -135,19 +164,21 @@ def load_cadunico():
     print(f"  CadÚnico: {len(df)} municípios")
     return df[cols]
 
-def gerar_csv(df_atlas, df_edu, df_cad, df_enem, output_path, label):
+def gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem, output_path, label):
     agg = agregar(df_enem)
-    df  = df_atlas.merge(df_edu, on='municipio_norm', how='left')
-    df  = df.merge(df_cad, on='municipio_norm', how='left')
+    df  = df_atlas.merge(df_edu,  on='municipio_norm', how='left')
+    df  = df.merge(df_cad,  on='municipio_norm', how='left')
+    df  = df.merge(df_inep, on='municipio_norm', how='left')
     df  = df.merge(agg, on='municipio_norm', how='left')
     df.to_csv(output_path, index=False)
     n_com_nota = df['NOTA_MEDIA'].notna().sum()
     print(f"  Salvo: {output_path}  ({n_com_nota} municípios com nota | {int(df['QTD_CANDIDATOS'].sum()):,} candidatos)")
 
     print(f"  Correlações com NOTA_MEDIA [{label}]:")
-    for col in ['IDHM', 'IDHM_R', 'IDHM_E', 'GINI', 'TX_ANALF', 'NEET_VULN',
-                'CRIAN_VULN', 'E_ANOSESTUDO', 'EDU_Perc_Aplicacao', 'EDU_Investimento_Aluno',
-                'IVCAD', 'IVCAD_DR', 'IVCAD_TQA', 'IVCAD_NC']:
+    for col in ['IDHM','IDHM_R','GINI','TX_ANALF','NEET_VULN',
+                'IVCAD_DR','IVCAD_TQA',
+                'NOTA_MEDIA_SAEB_2023','IDEB_2023','IND_REND_2023',
+                'EDU_Perc_Aplicacao','EDU_Investimento_Aluno']:
         sub = df[['NOTA_MEDIA', col]].dropna()
         if len(sub) < 5: continue
         r, p = stats.pearsonr(sub['NOTA_MEDIA'].astype(float), sub[col].astype(float))
@@ -163,16 +194,25 @@ if __name__ == '__main__':
     print("Carregando CadÚnico 2024...")
     df_cad = load_cadunico()
 
+    print("Carregando Censo Escolar 2023 (INEP)...")
+    df_inep = load_censo_escolar()
+
     print("Carregando ENEM 2024...")
     df_enem_todos = load_enem()
 
-    print("\n[1/2] Gerando dados_todos.csv (pública + privada)...")
-    gerar_csv(df_atlas, df_edu, df_cad, df_enem_todos, 'dados_todos.csv', 'todos')
+    print("\n[1/3] Gerando dados_todos.csv (pública + privada)...")
+    gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem_todos, 'dados_todos.csv', 'todos')
 
-    print("\n[2/2] Gerando dados_publico.csv (apenas escola pública)...")
+    print("\n[2/3] Gerando dados_publico.csv (apenas escola pública)...")
     df_enem_pub = df_enem_todos[
         df_enem_todos['TP_DEPENDENCIA_ADM_ESC'].isin([1, 2, 3])
     ].copy()
-    gerar_csv(df_atlas, df_edu, df_cad, df_enem_pub, 'dados_publico.csv', 'pública')
+    gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem_pub, 'dados_publico.csv', 'pública')
 
-    print("\nPronto! Suba os CSVs e o arquivo do CadÚnico para o GitHub.")
+    print("\n[3/3] Gerando dados_privado.csv (apenas escola privada)...")
+    df_enem_priv = df_enem_todos[
+        df_enem_todos['TP_DEPENDENCIA_ADM_ESC'] == 4
+    ].copy()
+    gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem_priv, 'dados_privado.csv', 'privada')
+
+    print("\nPronto! Suba os CSVs para o GitHub.")
