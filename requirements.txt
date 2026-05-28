@@ -1,4 +1,9 @@
 streamlit
 pandas
+numpy
 plotly
+scipy
+scikit-learn
+openpyxl
+odfpy
 statsmodels

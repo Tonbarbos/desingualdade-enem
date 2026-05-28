@@ -182,7 +182,7 @@ def gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem, output_path, label):
         sub = df[['NOTA_MEDIA', col]].dropna()
         if len(sub) < 5: continue
         r, p = stats.pearsonr(sub['NOTA_MEDIA'].astype(float), sub[col].astype(float))
-        print(f"    {'✓' if p < 0.05 else '✗'} r={r:+.3f}  p={p:.3f}  n={len(sub)}  {col}")
+        print(f"    {'[V]' if p < 0.05 else '[X]'} r={r:+.3f}  p={p:.3f}  n={len(sub)}  {col}")
 
 if __name__ == '__main__':
     print("Carregando Atlas Brasil...")
@@ -200,19 +200,16 @@ if __name__ == '__main__':
     print("Carregando ENEM 2024...")
     df_enem_todos = load_enem()
 
-    print("\n[1/3] Gerando dados_todos.csv (pública + privada)...")
+    print("\n[1/2] Gerando dados_todos.csv (pública + privada + egressos)...")
     gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem_todos, 'dados_todos.csv', 'todos')
 
-    print("\n[2/3] Gerando dados_publico.csv (apenas escola pública)...")
+    print("\n[2/2] Gerando dados_publico.csv (apenas concluintes escola pública 2024)...")
     df_enem_pub = df_enem_todos[
         df_enem_todos['TP_DEPENDENCIA_ADM_ESC'].isin([1, 2, 3])
     ].copy()
     gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem_pub, 'dados_publico.csv', 'pública')
 
-    print("\n[3/3] Gerando dados_privado.csv (apenas escola privada)...")
-    df_enem_priv = df_enem_todos[
-        df_enem_todos['TP_DEPENDENCIA_ADM_ESC'] == 4
-    ].copy()
-    gerar_csv(df_atlas, df_edu, df_cad, df_inep, df_enem_priv, 'dados_privado.csv', 'privada')
-
+    print()
+    print("NOTA: 'Apenas escola privada' foi removido — apenas ~3.500 candidatos")
+    print("no ES, insuficiente para correlações municipais válidas.")
     print("\nPronto! Suba os CSVs para o GitHub.")

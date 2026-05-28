@@ -5,7 +5,7 @@ __pycache__/
 .pytest_cache/
 
 # Dados Brutos ou Pesados (Não subir pro GitHub!!)
-microdados_enem_2024/
+microdados_enem_*/
 ES-2023/
 *.pdf
 *.xlsx
