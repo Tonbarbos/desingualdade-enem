@@ -13,6 +13,23 @@ st.set_page_config(page_title="Desigualdade vs ENEM no ES", page_icon=":material
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
+            
+    .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined' !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        font-size: 24px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        -webkit-font-feature-settings: 'liga' !important;
+        -webkit-font-smoothing: antialiased;
+    }
 
     /* ── Base ── */
     html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
@@ -227,7 +244,7 @@ if df_raw is None:
 st.markdown("---")
 min_cand = st.slider(
     ":material/group: Mínimo de candidatos por município:",
-    min_value=10, max_value=300, value=st.session_state['min_cand'], step=10,
+    min_value=10, max_value=300, step=10,
     key="min_cand",
     help="Municípios com poucos candidatos têm nota média instável e podem distorcer correlações."
 )
@@ -237,7 +254,7 @@ excluidos = len(df_raw) - len(df)
 
 if excluidos > 0:
     st.markdown(
-        f'<div class="warn-banner">⚠️ <b>{excluidos} município(s) excluído(s)</b> por ter menos de {min_cand} candidatos. '
+        f'<div class="warn-banner"><span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.1em;">warning</span> <b>{excluidos} município(s) excluído(s)</b> por ter menos de {min_cand} candidatos. '
         f'Restam <b>{len(df)} municípios</b> na análise. '
         f'<b>Atenção:</b> filtros muito altos podem deixar poucos municípios e tornar correlações instáveis.</div>',
         unsafe_allow_html=True
@@ -324,15 +341,15 @@ def sig_icon(p):
 # ── CARDS DE OVERVIEW ─────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f'<div class="metric-card"><div class="metric-icon">🗺️</div><div class="metric-title">Municípios Analisados</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">map</span></div><div class="metric-title">Municípios Analisados</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown(f'<div class="metric-card"><div class="metric-icon">👤</div><div class="metric-title">Total de Candidatos</div><div class="metric-value">{int(df["QTD_CANDIDATOS"].sum()):,}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">person</span></div><div class="metric-title">Total de Candidatos</div><div class="metric-value">{int(df["QTD_CANDIDATOS"].sum()):,}</div></div>', unsafe_allow_html=True)
 with c3:
     idx = df["NOTA_MEDIA"].idxmax()
-    st.markdown(f'<div class="metric-card"><div class="metric-icon">🏆</div><div class="metric-title">Maior Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">emoji_events</span></div><div class="metric-title">Maior Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
 with c4:
     idx = df["NOTA_MEDIA"].idxmin()
-    st.markdown(f'<div class="metric-card"><div class="metric-icon">📉</div><div class="metric-title">Menor Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">trending_down</span></div><div class="metric-title">Menor Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
 
 # ── DADOS TEMPORAIS (carregados uma vez, sem depender do filtro de escola) ──
 @st.cache_data
@@ -355,7 +372,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 # ─── TAB 1 ────────────────────────────────────────────────────────
 with tab1:
-    st.markdown("### 📊 Explorador de Correlação")
+    st.markdown("### :material/analytics: Explorador de Correlação")
     st.markdown("Selecione dois indicadores para visualizar a relação entre eles. O tamanho dos pontos representa o número de candidatos.")
 
     cx, cy = st.columns(2)
@@ -408,7 +425,7 @@ with tab1:
         if 'EDU_Perc_Aplicacao' in df.columns:
             abaixo = (df['EDU_Perc_Aplicacao'] < 25).sum()
             st.markdown(
-                f'<div class="info-banner">ℹ️ <b>% de Impostos Aplicados em Educação:</b> '
+                f'<div class="info-banner"><span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.1em;">info</span> <b>% de Impostos Aplicados em Educação:</b> '
                 f'A Constituição Federal exige mínimo de <b>25%</b> para municípios. '
                 f'No ES 2023: mín {df["EDU_Perc_Aplicacao"].min():.1f}% | '
                 f'máx {df["EDU_Perc_Aplicacao"].max():.1f}% | '
@@ -477,7 +494,7 @@ with tab1:
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### 🗃️ Dados por Município")
+    st.markdown("### :material/folder_open: Dados por Município")
     disp = [c for c in ['Nome_Municipio', 'QTD_CANDIDATOS', 'PERC_ESCOLA_PUB', 'NOTA_MEDIA',
                          'IDHM', 'IDHM_R', 'IDHM_E', 'GINI', 'TX_ANALF', 'NEET_VULN',
                          'IVCAD', 'IVCAD_DR', 'IVCAD_TQA',
@@ -487,7 +504,7 @@ with tab1:
                  use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    st.markdown("### 🌡️ Matriz de Correlação entre Indicadores")
+    st.markdown("### :material/grid_view: Matriz de Correlação entre Indicadores")
     st.markdown("Valores próximos de **+1** = correlação positiva forte; **-1** = negativa forte; **0** = sem relação.")
 
     grupos = st.multiselect("Grupos a incluir:", list(INDICATORS_DICT.keys()),
@@ -517,7 +534,7 @@ with tab2:
     st.markdown("### 🧪 Testes Estatísticos")
 
     # Regressão Linear
-    st.markdown("#### 📈 Regressão Linear Simples")
+    st.markdown("#### :material/show_chart: Regressão Linear Simples")
     r_c1, r_c2 = st.columns(2)
     with r_c1:
         reg_cats_x = [c for c in INDICATORS_DICT if c != 'NOTAS DO ENEM']
@@ -580,7 +597,7 @@ with tab2:
     st.markdown("---")
 
     # Teste t
-    st.markdown("#### 🔬 Teste t — Comparação de Grupos")
+    st.markdown("#### :material/biotech: Teste t — Comparação de Grupos")
     st.markdown("Compara a nota média entre municípios com **alto** e **baixo** valor de um indicador (divisão pela mediana).")
 
     t_c1, t_c2 = st.columns(2)
@@ -628,7 +645,7 @@ with tab2:
     st.markdown("---")
 
     # Tabela completa de correlações
-    st.markdown("#### 📋 Tabela de Correlações com a Nota Média Geral")
+    st.markdown("#### :material/table: Tabela de Correlações com a Nota Média Geral")
     rows = []
     for cat, items in INDICATORS_DICT.items():
         if cat == 'NOTAS DO ENEM': continue
@@ -646,7 +663,7 @@ with tab2:
 
 # ─── TAB 3 ────────────────────────────────────────────────────────
 with tab3:
-    st.markdown("### 🎯 Detecção de Outliers e Distribuição")
+    st.markdown("### :material/track_changes: Detecção de Outliers e Distribuição")
 
     # FIX 4: opção de método de detecção de outliers
     met_col, out_col_sel = st.columns([1, 3])
@@ -730,7 +747,7 @@ with tab3:
 
 # ─── TAB 4: MACHINE LEARNING ─────────────────────────────────────
 with tab4:
-    st.markdown("### 🤖 Machine Learning — Agrupamento e Importância de Variáveis")
+    st.markdown("### :material/smart_toy: Machine Learning — Agrupamento e Importância de Variáveis")
     st.markdown(
         "Aplicação de dois algoritmos de Machine Learning: "
         "**K-Means** para agrupar municípios em perfis socioeconômicos semelhantes "
@@ -755,7 +772,7 @@ with tab4:
 
     # ── SEÇÃO 1: K-MEANS ─────────────────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🎯 K-Means — Agrupamento de Municípios em Perfis")
+    st.markdown("#### :material/track_changes: K-Means — Agrupamento de Municípios em Perfis")
     st.markdown(
         "O algoritmo K-Means agrupa municípios com características socioeconômicas e de desempenho "
         "semelhantes em **clusters**. Cada cluster representa um perfil distinto de município no ES."
@@ -833,7 +850,7 @@ with tab4:
 
     # ── SEÇÃO 2: RANDOM FOREST ───────────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🌲 Random Forest — Importância das Variáveis")
+    st.markdown("#### :material/forest: Random Forest — Importância das Variáveis")
     st.markdown(
         "O Random Forest é um modelo de ensemble que ranqueia quais variáveis "
         "mais influenciam a nota do ENEM. Diferente da correlação simples, ele "
@@ -904,7 +921,7 @@ with tab4:
 
     # ── SEÇÃO 3: Previsão 2025 ────────────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🔮 Previsão para o ENEM 2025")
+    st.markdown("#### :material/online_prediction: Previsão para o ENEM 2025")
     st.markdown(
         "Regressão linear temporal aplicada à série histórica 2012–2024 de cada município. "
         "A tendência é extrapolada para 2025 com intervalo de confiança de 95%."
@@ -1051,7 +1068,7 @@ with tab4:
 
 # ─── TAB 5: EVOLUÇÃO TEMPORAL ────────────────────────────────────
 with tab5:
-    st.markdown("### 📈 Evolução Temporal das Notas — ENEM 2012–2024")
+    st.markdown("### :material/trending_up: Evolução Temporal das Notas — ENEM 2012–2024")
     st.markdown(
         "Análise da evolução das notas médias no ENEM ao longo de 13 anos "
         "nos municípios do Espírito Santo. Permite identificar tendências, "
@@ -1089,7 +1106,7 @@ with tab5:
 
     # ── SEÇÃO 1: Evolução por município selecionado ───────────────
     st.markdown("---")
-    st.markdown("#### 🏙️ Comparar Municípios ao Longo do Tempo")
+    st.markdown("#### :material/location_city: Comparar Municípios ao Longo do Tempo")
 
     # Municípios com dados em pelo menos 8 anos (série mais completa)
     muns_completos = (
@@ -1235,7 +1252,7 @@ with tab5:
 
     # ── SEÇÃO 2: Evolução por perfil de desenvolvimento ──────────
     st.markdown("---")
-    st.markdown("#### 🏘️ Evolução Média por Perfil de Desenvolvimento (IDHM)")
+    st.markdown("#### :material/holiday_village: Evolução Média por Perfil de Desenvolvimento (IDHM)")
     st.markdown(
         "Municípios agrupados em 4 quartis de IDHM (dados Atlas Brasil 2010). "
         "Permite identificar se a desigualdade de desempenho aumentou ou diminuiu ao longo dos anos "
@@ -1305,7 +1322,7 @@ with tab5:
 
     # ── SEÇÃO 3: Ranking de evolução ─────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🏆 Municípios que Mais Evoluíram / Regrediram")
+    st.markdown("#### :material/emoji_events: Municípios que Mais Evoluíram / Regrediram")
 
     # Modo grupo = média de múltiplos anos; modo par = dois anos específicos
     GRUPO_A = [2012, 2014, 2015, 2016, 2017, 2018]   # pré-pandemia (2013 excluído: anomalia TRI)
