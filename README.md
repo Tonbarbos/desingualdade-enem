@@ -5,6 +5,8 @@ Painel interativo que analisa a relação entre desigualdade social e desempenho
 🔗 **[Acessar o painel](https://desingualdade-enem.streamlit.app)**
 
 ---
+## Objetivo
+Este projeto tem como objetivo analisar como fatores socioeconômicos influenciam o desempenho educacional no ENEM, utilizando dados reais e técnicas estatísticas e de machine learning para gerar insights relevantes.
 
 ## O que o painel oferece
 
