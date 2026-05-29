@@ -8,41 +8,162 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.decomposition import PCA
 
-st.set_page_config(page_title="Desigualdade vs ENEM no ES", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Desigualdade vs ENEM no ES", page_icon=":material/school:", layout="wide")
 
 st.markdown("""
 <style>
-    .main { background-color: #0E1117; font-family: 'Inter', sans-serif; }
-    h1, h2, h3 { color: #E2E8F0; font-weight: 700; }
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+    /* ── Base ── */
+    html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+    .main { background-color: #080D14; }
+
+    /* ── Tipografia global ── */
+    h1 { color: #F1F5F9; font-weight: 700; letter-spacing: -0.5px; }
+    h2, h3, h4 { color: #E2E8F0; font-weight: 600; }
+    p, li { color: #94A3B8; line-height: 1.7; }
+
+    /* ── Cabeçalho do app ── */
+    .app-header {
+        background: linear-gradient(135deg, rgba(14,22,36,0.95) 0%, rgba(15,28,50,0.95) 100%);
+        border: 1px solid rgba(56,189,248,0.15);
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 28px;
+        position: relative;
+        overflow: hidden;
+    }
+    .app-header::before {
+        content: '';
+        position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, #0EA5E9, #38BDF8, #7DD3FC, #38BDF8, #0EA5E9);
+        background-size: 200% 100%;
+        animation: shimmer 3s linear infinite;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .app-header h1 { margin: 0 0 8px 0; font-size: 1.6rem; }
+    .app-header p  { margin: 0; font-size: 0.92rem; color: #64748B; }
+
+    /* ── Cards de métricas ── */
     .metric-card {
-        background: rgba(30,41,59,0.7); backdrop-filter: blur(10px);
-        border-radius: 12px; padding: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin-bottom: 20px;
-        border: 1px solid rgba(255,255,255,0.1); transition: transform 0.2s ease;
+        background: linear-gradient(145deg, rgba(15,23,42,0.9), rgba(20,30,50,0.9));
+        backdrop-filter: blur(12px);
+        border-radius: 14px;
+        padding: 22px 20px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+        margin-bottom: 16px;
+        border: 1px solid rgba(255,255,255,0.07);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        position: relative;
+        overflow: hidden;
     }
-    .metric-card:hover { transform: translateY(-5px); }
-    .metric-title { color: #94A3B8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
-    .metric-value { color: #38BDF8; font-size: 2rem; font-weight: bold; margin-top: 10px; }
-    .metric-sub   { color: #64748b; font-size: 0.8rem; margin-top: 5px; }
+    .metric-card::after {
+        content: '';
+        position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(56,189,248,0.4), transparent);
+    }
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+        border-color: rgba(56,189,248,0.2);
+    }
+    .metric-icon  { font-size: 1.4rem; margin-bottom: 10px; opacity: 0.85; }
+    .metric-title { color: #64748B; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+    .metric-value { color: #38BDF8; font-size: 2rem; font-weight: 700; margin-top: 6px; font-family: 'DM Mono', monospace; letter-spacing: -1px; }
+    .metric-sub   { color: #475569; font-size: 0.78rem; margin-top: 4px; }
+
+    /* ── Caixas de estatísticas ── */
     .stat-box {
-        background: rgba(30,41,59,0.5); border-radius: 8px; padding: 14px;
-        border: 1px solid rgba(255,255,255,0.08); margin-top: 8px;
+        background: rgba(15,23,42,0.6);
+        border-radius: 10px;
+        padding: 14px 16px;
+        border: 1px solid rgba(255,255,255,0.06);
+        margin-top: 8px;
+        transition: border-color 0.2s;
     }
-    .filter-banner {
-        background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3);
-        border-radius: 10px; padding: 12px 18px; margin-bottom: 16px;
-        color: #94A3B8; font-size: 0.9rem;
-    }
+    .stat-box:hover { border-color: rgba(56,189,248,0.2); }
+
+    /* ── Banners de alerta / info ── */
     .warn-banner {
-        background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3);
-        border-radius: 10px; padding: 12px 18px; margin-bottom: 8px;
-        color: #94A3B8; font-size: 0.85rem;
+        background: rgba(234,179,8,0.08);
+        border: 1px solid rgba(234,179,8,0.25);
+        border-left: 3px solid rgba(234,179,8,0.7);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        color: #A3A39E;
+        font-size: 0.85rem;
+        line-height: 1.6;
     }
     .info-banner {
-        background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3);
-        border-radius: 10px; padding: 12px 18px; margin-bottom: 8px;
-        color: #94A3B8; font-size: 0.85rem;
+        background: rgba(99,102,241,0.07);
+        border: 1px solid rgba(99,102,241,0.2);
+        border-left: 3px solid rgba(99,102,241,0.6);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        color: #A3A3B8;
+        font-size: 0.85rem;
+        line-height: 1.6;
     }
+    .filter-banner {
+        background: rgba(56,189,248,0.07);
+        border: 1px solid rgba(56,189,248,0.2);
+        border-left: 3px solid rgba(56,189,248,0.6);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        color: #94A3B8;
+        font-size: 0.88rem;
+        line-height: 1.6;
+    }
+
+    /* ── Separadores de seção ── */
+    .section-divider {
+        display: flex; align-items: center; gap: 12px;
+        margin: 28px 0 20px 0;
+    }
+    .section-divider-line {
+        flex: 1; height: 1px;
+        background: linear-gradient(90deg, rgba(56,189,248,0.3), transparent);
+    }
+
+    /* ── Filtros ── */
+    .filter-section {
+        background: rgba(15,23,42,0.6);
+        border-radius: 12px;
+        padding: 20px 24px;
+        border: 1px solid rgba(255,255,255,0.06);
+        margin-bottom: 20px;
+    }
+
+    /* ── Rótulos dos inputs ── */
+    .input-label {
+        color: #64748B;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    /* ── Streamlit overrides ── */
+    .stRadio > label { color: #94A3B8 !important; font-size: 0.85rem !important; }
+    div[data-testid="stMetricValue"] { font-family: 'DM Mono', monospace !important; }
+    .stTabs [data-baseweb="tab-list"] { gap: 4px; background: rgba(15,23,42,0.8); border-radius: 10px; padding: 4px; }
+    .stTabs [data-baseweb="tab"] { border-radius: 8px; padding: 8px 16px; color: #64748B; font-size: 0.88rem; }
+    .stTabs [aria-selected="true"] { background: rgba(56,189,248,0.15) !important; color: #38BDF8 !important; font-weight: 600; }
+    [data-testid="stSidebar"] { background: rgba(10,18,30,0.95); }
+    .stDataFrame { border-radius: 10px; overflow: hidden; }
+    div[data-testid="stExpander"] { border: 1px solid rgba(255,255,255,0.07) !important; border-radius: 10px !important; }
+    .streamlit-expanderHeader { font-size: 0.9rem !important; }
+    hr { border-color: rgba(255,255,255,0.06) !important; margin: 24px 0 !important; }
+
+    /* ── Scroll customizado ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15,23,42,0.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(56,189,248,0.5); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,15 +178,16 @@ for key, default in {
         st.session_state[key] = default
 
 # ── FILTROS GLOBAIS ───────────────────────────────────────────────
-st.title("🎓 Desigualdade Social e Desempenho no ENEM — Espírito Santo 2024")
-st.markdown(
-    "Análise exploratória das notas do **ENEM 2024** nos municípios do ES, "
-    "cruzadas com indicadores socioeconômicos (Atlas Brasil / Censo 2010) "
-    "e gastos educacionais municipais (SIOPE 2023)."
-)
+st.markdown("""
+<div class="app-header">
+    <h1>Desigualdade Social e Desempenho no ENEM — Espírito Santo 2024</h1>
+    <p>Análise exploratória das notas do ENEM 2024 nos municípios do ES, cruzadas com indicadores socioeconômicos
+    (Atlas Brasil / Censo 2010) e gastos educacionais municipais (SIOPE 2023).</p>
+</div>
+""", unsafe_allow_html=True)
 
 tipo_escola = st.radio(
-    "🏫 Candidatos incluídos:",
+    ":material/school: Candidatos incluídos:",
     ["Apenas escola pública", "Pública + Privada (todos)"],
     horizontal=True,
     key="tipo_escola",
@@ -104,7 +226,7 @@ if df_raw is None:
 
 st.markdown("---")
 min_cand = st.slider(
-    "👥 Mínimo de candidatos por município:",
+    ":material/group: Mínimo de candidatos por município:",
     min_value=10, max_value=300, value=st.session_state['min_cand'], step=10,
     key="min_cand",
     help="Municípios com poucos candidatos têm nota média instável e podem distorcer correlações."
@@ -202,15 +324,15 @@ def sig_icon(p):
 # ── CARDS DE OVERVIEW ─────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Municípios Analisados</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon">🗺️</div><div class="metric-title">Municípios Analisados</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Total de Candidatos</div><div class="metric-value">{int(df["QTD_CANDIDATOS"].sum()):,}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon">👤</div><div class="metric-title">Total de Candidatos</div><div class="metric-value">{int(df["QTD_CANDIDATOS"].sum()):,}</div></div>', unsafe_allow_html=True)
 with c3:
     idx = df["NOTA_MEDIA"].idxmax()
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Maior Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon">🏆</div><div class="metric-title">Maior Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
 with c4:
     idx = df["NOTA_MEDIA"].idxmin()
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Menor Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon">📉</div><div class="metric-title">Menor Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
 
 # ── DADOS TEMPORAIS (carregados uma vez, sem depender do filtro de escola) ──
 @st.cache_data
@@ -224,11 +346,11 @@ df_temporal = load_temporal()
 
 # ── ABAS ──────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Explorador de Correlação",
-    "🧪 Testes Estatísticos",
-    "🎯 Outliers e Distribuição",
-    "🤖 Machine Learning",
-    "📈 Evolução Temporal",
+    ":material/scatter_plot: Explorador de Correlação",
+    ":material/science: Testes Estatísticos",
+    ":material/manage_search: Outliers e Distribuição",
+    ":material/smart_toy: Machine Learning",
+    ":material/timeline: Evolução Temporal",
 ])
 
 # ─── TAB 1 ────────────────────────────────────────────────────────
@@ -1289,4 +1411,3 @@ with tab5:
     )
     fig_evo.add_vline(x=0, line_dash="dash", line_color="#94A3B8")
     st.plotly_chart(fig_evo, use_container_width=True)
-
