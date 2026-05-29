@@ -6,6 +6,7 @@ Painel interativo que analisa a relação entre desigualdade social e desempenho
 
 ---
 ## Objetivo
+
 Este projeto tem como objetivo analisar como fatores socioeconômicos influenciam o desempenho educacional no ENEM, utilizando dados reais e técnicas estatísticas e de machine learning para gerar insights relevantes.
 
 ## O que o painel oferece
@@ -25,6 +26,14 @@ Este projeto tem como objetivo analisar como fatores socioeconômicos influencia
 | CadÚnico 2024 (MDS) | Índice de Vulnerabilidade (IVCAD) |
 | SIOPE 2023 (FNDE) | Gastos educacionais municipais |
 | Censo Escolar 2023 (INEP) | IDEB, SAEB, rendimento escolar |
+
+## Metodologia
+
+- Análise exploratória de dados (EDA)
+- Cálculo de correlações (Pearson)
+- Modelos de regressão linear
+- Algoritmos de Machine Learning (K-Means e Random Forest)
+- Visualização interativa com Plotly
 
 ## Tecnologias
 
