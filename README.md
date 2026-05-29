@@ -41,5 +41,5 @@ Python · Streamlit · Plotly · scikit-learn · pandas
 
 ## Integrantes do Grupo
 
-- Ana Luiza Menelli Taylor 🔗 **[Ana Luiza Menelli Taylor](https://desingualdade-enem.streamlit.app)**
+- **[Ana Luiza Menelli Taylor](https://github.com/analuizataylor)**
 - Danton Barbosa
