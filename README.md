@@ -42,4 +42,6 @@ Python · Streamlit · Plotly · scikit-learn · pandas
 ## Integrantes do Grupo
 
 - **[Ana Luiza Menelli Taylor](https://github.com/analuizataylor)**
-- Danton Barbosa
+- **[Danton Barbosa](https://github.com/Tonbarbos)**
+- **[Felipe Valério Rocha](https://github.com/felipevaleriorocha)**
+- **[Karoliny Franco]([https://github.com/felipevaleriorocha](https://github.com/karolinyfranco))**
