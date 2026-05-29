@@ -39,3 +39,7 @@ Este projeto tem como objetivo analisar como fatores socioeconômicos influencia
 
 Python · Streamlit · Plotly · scikit-learn · pandas
 
+## Integrantes do Grupo
+
+- Ana Luiza Menelli Taylor 🔗 **[Ana Luiza Menelli Taylor](https://desingualdade-enem.streamlit.app)**
+- Danton Barbosa
