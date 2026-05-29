@@ -37,7 +37,7 @@ Este projeto tem como objetivo analisar como fatores socioeconômicos influencia
 
 ## Tecnologias
 
-Python · Streamlit · Plotly · scikit-learn · pandas
+Python · Streamlit · Plotly · Scikit-learn · Pandas
 
 ## Integrantes do Grupo
 
