@@ -44,4 +44,5 @@ Python · Streamlit · Plotly · scikit-learn · pandas
 - **[Ana Luiza Menelli Taylor](https://github.com/analuizataylor)**
 - **[Danton Barbosa](https://github.com/Tonbarbos)**
 - **[Felipe Valério Rocha](https://github.com/felipevaleriorocha)**
-- **[Karoliny Franco]([https://github.com/felipevaleriorocha](https://github.com/karolinyfranco))**
+- **[Karoliny Franco](https://github.com/karolinyfranco)**
+- **[Gustavo Rissoli](https://github.com/Gustavo-Rissoli)**
