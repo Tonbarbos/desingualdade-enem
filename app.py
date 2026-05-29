@@ -228,17 +228,35 @@ tipo_escola = st.radio(
 
 arquivo = "dados_publico.csv" if tipo_escola == "Apenas escola pública" else "dados_todos.csv"
 
+ # FIX 7: leitura segura dos arquivos CSV com tratamento de erros de importação
 @st.cache_data
-def load_data(path):
+def load_csv_data(path):
     try:
-        return pd.read_csv(path)
+        dados = pd.read_csv(path)
+
+        if dados.empty:
+            return None, f"O arquivo **{path}** foi encontrado, mas está vazio."
+
+        return dados, None
+
     except FileNotFoundError:
-        return None
+        return None, f"Arquivo **{path}** não encontrado."
 
-df_raw = load_data(arquivo)
+    except pd.errors.EmptyDataError:
+        return None, f"O arquivo **{path}** está vazio ou não possui dados válidos."
 
-if df_raw is None:
-    st.error(f"Arquivo **{arquivo}** não encontrado. Execute `process_duplo.py` para gerar os dados.")
+    except pd.errors.ParserError:
+        return None, f"Não foi possível interpretar o arquivo **{path}**. Verifique se o CSV está bem formatado."
+
+    except Exception as erro:
+        return None, f"Erro inesperado ao carregar o arquivo **{path}**: {erro}"
+
+
+df_raw, erro_dados = load_csv_data(arquivo)
+
+if erro_dados:
+    st.error(erro_dados)
+    st.info("Execute `process_duplo.py` para gerar os arquivos `dados_publico.csv` e `dados_todos.csv`.")
     st.stop()
 
 st.markdown("---")
@@ -352,14 +370,14 @@ with c4:
     st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">trending_down</span></div><div class="metric-title">Menor Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
 
 # ── DADOS TEMPORAIS (carregados uma vez, sem depender do filtro de escola) ──
+# ALTERAÇÃO: leitura segura do CSV temporal usando o mesmo tratamento de erros
 @st.cache_data
 def load_temporal():
-    try:
-        return pd.read_csv("dados_temporal.csv")
-    except FileNotFoundError:
-        return None
+    dados_temporais, erro_temporal = load_csv_data("dados_temporal.csv")
+    return dados_temporais, erro_temporal
 
-df_temporal = load_temporal()
+
+df_temporal, erro_temporal = load_temporal()
 
 # ── ABAS ──────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -934,7 +952,7 @@ with tab4:
     )
 
     if df_temporal is None:
-        st.info("Execute `python process_temporal.py` para habilitar a previsão 2025.")
+        st.info(erro_temporal or "Execute `python process_temporal.py` para habilitar a previsão 2025.")
     else:
         from scipy.stats import t as t_dist
 
@@ -1077,8 +1095,8 @@ with tab5:
 
     if df_temporal is None:
         st.warning(
-            "Arquivo **dados_temporal.csv** não encontrado. "
-            "Execute `python process_temporal.py` para gerar os dados históricos."
+            erro_temporal or
+            "Arquivo **dados_temporal.csv** não encontrado. Execute `python process_temporal.py` para gerar os dados históricos."
         )
         st.code("python process_temporal.py", language="bash")
         st.stop()
