@@ -2,7 +2,7 @@
 
 Painel interativo que analisa a relação entre desigualdade social e desempenho no ENEM 2024 nos 78 municípios do Espírito Santo, cruzando microdados do ENEM com indicadores socioeconômicos, gastos educacionais e qualidade do ensino.
 
-🔗 **[Acessar o painel](https://desingualdade-enem.streamlit.app)**
+🔗 **[Acessar o painel](https://desigualdade-enem.streamlit.app)**
 
 ---
 ## Objetivo
