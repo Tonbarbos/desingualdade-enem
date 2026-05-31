@@ -784,7 +784,7 @@ with tab4:
     st.markdown("---")
     st.markdown("#### 🔮 Previsão para o ENEM 2025")
     st.markdown(
-        "Regressão linear temporal aplicada à série histórica 2012–2024 de cada município. "
+        "Regressão linear temporal aplicada à série histórica 2016–2024 de cada município. "
         "A tendência é extrapolada para 2025 com intervalo de confiança de 95%."
     )
     st.markdown(
@@ -798,11 +798,26 @@ with tab4:
         st.info("Execute `python process_temporal.py` para habilitar a previsão 2025.")
     else:
         from scipy.stats import t as t_dist
+        from sklearn.linear_model import Ridge
+        from sklearn.preprocessing import StandardScaler
 
         df_t_ml = df_temporal.copy()
         df_t_ml['Ano'] = df_t_ml['Ano'].astype(int)
         anos_disp_ml = sorted(df_t_ml['Ano'].unique())
 
+        # Indicadores socioeconômicos disponíveis para enriquecer o modelo
+        FEAT_SOCIO = {
+            'Investimento por Aluno (SIOPE)': 'EDU_Investimento_Aluno',
+            'IDHM Geral':                     'IDHM',
+            'Nota SAEB — Ens. Médio':         'NOTA_MEDIA_SAEB_2023',
+            'IVCAD — Vulnerabilidade':        'IVCAD',
+            'Taxa de Analfabetismo':          'TX_ANALF',
+        }
+        feats_disponiveis = {k: v for k, v in FEAT_SOCIO.items()
+                             if df_raw is not None and v in df_raw.columns
+                             and df_raw[v].count() > 10}
+
+        # Controles — coluna da direita
         prev_col1, prev_col2 = st.columns([2, 1])
         with prev_col2:
             anos_base = st.multiselect(
@@ -824,12 +839,26 @@ with tab4:
                 'Ciências Humanas': 'NU_NOTA_CH', 'Ciências da Natureza': 'NU_NOTA_CN',
             }[prev_nota]
 
+            # Features extras do modelo
+            if feats_disponiveis:
+                feats_sel_labels = st.multiselect(
+                    "Indicadores adicionais no modelo:",
+                    options=list(feats_disponiveis.keys()),
+                    default=list(feats_disponiveis.keys())[:3],
+                    key='prev_feats',
+                    help="Combinados com o ano para gerar uma previsão multivariada (regressão de painel).",
+                )
+                feats_sel_cols = [feats_disponiveis[k] for k in feats_sel_labels]
+            else:
+                feats_sel_cols = []
+
         if len(anos_base) < 3:
             st.warning("Selecione ao menos 3 anos para ajustar o modelo.")
         else:
             ANO_PREV = 2025
             df_base = df_t_ml[df_t_ml['Ano'].isin(anos_base)].copy()
 
+            # ── 1. Regressão temporal por município (IC 95%) ───────
             previsoes = []
             for mun, grp in df_base.groupby('NO_MUNICIPIO_PROVA'):
                 serie = grp[['Ano', prev_nota_col]].dropna().sort_values('Ano')
@@ -838,93 +867,163 @@ with tab4:
                 x = serie['Ano'].values
                 y = serie[prev_nota_col].values
                 slope, intercept, r, p, se = stats.linregress(x, y)
-                n      = len(x)
-                x_mean = x.mean()
-                ss_x   = ((x - x_mean) ** 2).sum()
+                n, x_mean = len(x), x.mean()
+                ss_x    = ((x - x_mean) ** 2).sum()
                 se_pred = se * np.sqrt(1 + 1/n + (ANO_PREV - x_mean)**2 / ss_x)
                 t_crit  = t_dist.ppf(0.975, df=n - 2)
                 y_pred  = slope * ANO_PREV + intercept
                 previsoes.append({
-                    'Município':         mun,
-                    f'Nota {anos_base[-1]} (real)': round(
+                    'NO_MUNICIPIO_PROVA': mun,
+                    'Município': mun,
+                    f'Nota {anos_base[-1]}': round(
                         grp[grp['Ano'] == anos_base[-1]][prev_nota_col].values[0]
                         if anos_base[-1] in grp['Ano'].values else np.nan, 2),
-                    'Previsão 2025':     round(y_pred, 2),
+                    'Previsão 2025 (tendência)': round(y_pred, 2),
                     'IC inferior (95%)': round(y_pred - t_crit * se_pred, 2),
                     'IC superior (95%)': round(y_pred + t_crit * se_pred, 2),
-                    'Tendência anual':   round(slope, 2),
-                    'R²':                round(r**2, 3),
+                    'Tendência anual': round(slope, 2),
+                    'R² temporal': round(r**2, 3),
+                    '_slope': slope, '_intercept': intercept,
                 })
+            df_prev = pd.DataFrame(previsoes)
 
-            df_prev = pd.DataFrame(previsoes).sort_values('Previsão 2025', ascending=False).reset_index(drop=True)
+            # ── 2. Modelo de painel (Ano + indicadores socio) ──────
+            usar_painel = len(feats_sel_cols) > 0 and df_raw is not None
+            r2_panel = None
+            if usar_painel and len(df_prev) > 0:
+                socio = df_raw[['municipio_norm'] + feats_sel_cols].dropna()
+                df_panel = df_base.merge(socio, on='municipio_norm', how='inner')
+                X_cols = ['Ano'] + feats_sel_cols
+                df_panel_clean = df_panel[X_cols + [prev_nota_col]].dropna()
+                if len(df_panel_clean) >= 10:
+                    scaler_p = StandardScaler()
+                    X_sc = scaler_p.fit_transform(df_panel_clean[X_cols])
+                    model_p = Ridge(alpha=1.0)
+                    model_p.fit(X_sc, df_panel_clean[prev_nota_col].values)
+                    r2_panel = round(model_p.score(X_sc, df_panel_clean[prev_nota_col].values), 3)
+                    # Previsões 2025 para cada município
+                    socio_all = df_raw[['municipio_norm', 'NO_MUNICIPIO_PROVA'] + feats_sel_cols].dropna()
+                    X_2025 = socio_all[feats_sel_cols].copy()
+                    X_2025.insert(0, 'Ano', ANO_PREV)
+                    socio_all = socio_all.copy()
+                    socio_all['Previsão 2025 (painel)'] = model_p.predict(
+                        scaler_p.transform(X_2025)).round(2)
+                    df_prev = df_prev.merge(
+                        socio_all[['NO_MUNICIPIO_PROVA', 'Previsão 2025 (painel)']],
+                        on='NO_MUNICIPIO_PROVA', how='left')
+                else:
+                    usar_painel = False
 
-            # Previsão agregada ES
-            es_anual = df_base.groupby('Ano')[prev_nota_col].mean().reset_index()
-            es_anual.columns = ['Ano', 'Nota']
-            x_es = es_anual['Ano'].values
-            y_es = es_anual['Nota'].values
-            sl_es, ic_es, r_es, p_es, se_es = stats.linregress(x_es, y_es)
-            n_es     = len(x_es)
-            xm_es    = x_es.mean()
-            ssx_es   = ((x_es - xm_es) ** 2).sum()
-            se_p_es  = se_es * np.sqrt(1 + 1/n_es + (ANO_PREV - xm_es)**2 / ssx_es)
-            t_es     = t_dist.ppf(0.975, df=n_es - 2)
-            prev_es  = sl_es * ANO_PREV + ic_es
-            prev_es_lo = prev_es - t_es * se_p_es
-            prev_es_hi = prev_es + t_es * se_p_es
+            df_prev = df_prev.sort_values('Previsão 2025 (tendência)', ascending=False).reset_index(drop=True)
 
+            # ── Seletor de município (só municípios com previsão) ──
+            # Fix: usar apenas nomes de df_prev para evitar nomes uppercase de 2012-2014
+            muns_prev = sorted(df_prev['Município'].dropna().unique())
+            with prev_col2:
+                mun_prev_sel = st.selectbox(
+                    "Município a visualizar:",
+                    options=['Espírito Santo (média geral)'] + muns_prev,
+                    key='prev_mun_sel',
+                )
+
+            # ── 3. Dados do gráfico para município ou ES ───────────
+            if mun_prev_sel == 'Espírito Santo (média geral)':
+                serie_graf = df_base.groupby('Ano')[prev_nota_col].mean().reset_index()
+                serie_graf.columns = ['Ano', 'Nota']
+                title_graf = f"Previsão 2025 — {prev_nota} (média ES)"
+                sl_g, ic_g, r_g, _, se_g = stats.linregress(serie_graf['Ano'], serie_graf['Nota'])
+                n_g, xm_g = len(serie_graf), serie_graf['Ano'].mean()
+                ssx_g = ((serie_graf['Ano'] - xm_g) ** 2).sum()
+                se_pg = se_g * np.sqrt(1 + 1/n_g + (ANO_PREV - xm_g)**2 / ssx_g)
+                tc_g  = t_dist.ppf(0.975, df=n_g - 2)
+                y_temp = round(sl_g * ANO_PREV + ic_g, 1)
+                lo_g   = round(y_temp - tc_g * se_pg, 1)
+                hi_g   = round(y_temp + tc_g * se_pg, 1)
+                r2_g   = round(r_g**2, 3)
+                # Painel ES = média das previsões por município
+                y_panel = round(df_prev['Previsão 2025 (painel)'].mean(), 1) \
+                    if usar_painel and 'Previsão 2025 (painel)' in df_prev.columns else None
+            else:
+                row_m = df_prev[df_prev['Município'] == mun_prev_sel]
+                grp_graf = df_base[df_base['NO_MUNICIPIO_PROVA'] == mun_prev_sel]
+                serie_graf = grp_graf[['Ano', prev_nota_col]].dropna().sort_values('Ano')
+                serie_graf.columns = ['Ano', 'Nota']
+                title_graf = f"Previsão 2025 — {prev_nota} ({mun_prev_sel})"
+                sl_g       = row_m['_slope'].values[0]
+                ic_g       = row_m['_intercept'].values[0]
+                y_temp     = row_m['Previsão 2025 (tendência)'].values[0]
+                lo_g       = row_m['IC inferior (95%)'].values[0]
+                hi_g       = row_m['IC superior (95%)'].values[0]
+                r2_g       = row_m['R² temporal'].values[0]
+                y_panel    = row_m['Previsão 2025 (painel)'].values[0] \
+                    if usar_painel and 'Previsão 2025 (painel)' in row_m.columns else None
+
+            # Ponto principal = painel (se ativo), senão temporal
+            y_main  = y_panel if (usar_painel and y_panel is not None and pd.notna(y_panel)) else y_temp
+            label_main = 'Previsão 2025 (painel + tendência)' if usar_painel and y_panel is not None else 'Previsão 2025 (tendência)'
+
+            # ── 4. Gráfico ─────────────────────────────────────────
             with prev_col1:
-                anos_ext   = list(anos_base) + [ANO_PREV]
-                trend_line = [sl_es * a + ic_es for a in anos_ext]
-                fig_prev = px.scatter(
-                    es_anual, x='Ano', y='Nota',
-                    title=f"Tendência e previsão 2025 — {prev_nota} (média ES)",
-                    template="plotly_dark",
-                    labels={'Nota': prev_nota, 'Ano': 'Ano'},
-                )
+                anos_ext   = sorted(set(list(serie_graf['Ano']) + [ANO_PREV]))
+                trend_vals = [sl_g * a + ic_g for a in anos_ext]
+
+                fig_prev = px.scatter(serie_graf, x='Ano', y='Nota',
+                    title=title_graf, template="plotly_dark",
+                    labels={'Nota': prev_nota, 'Ano': 'Ano'})
                 fig_prev.update_traces(marker=dict(size=9, color='#38BDF8'), name='Real')
-                fig_prev.add_scatter(
-                    x=anos_ext, y=trend_line,
-                    mode='lines', name='Tendência (OLS)',
-                    line=dict(color='#94A3B8', dash='dot', width=2),
-                )
-                fig_prev.add_scatter(
-                    x=[ANO_PREV], y=[prev_es],
-                    mode='markers', name='Previsão 2025',
-                    marker=dict(size=14, color='#F97316', symbol='diamond'),
+                fig_prev.add_scatter(x=anos_ext, y=trend_vals, mode='lines',
+                    name='Tendência (OLS)',
+                    line=dict(color='#94A3B8', dash='dot', width=2))
+                fig_prev.add_scatter(x=[ANO_PREV], y=[y_temp], mode='markers',
+                    name='Previsão 2025 (tendência)',
+                    marker=dict(size=10 if usar_painel else 14,
+                                color='#F97316' if not usar_painel else '#64748b',
+                                symbol='diamond', opacity=0.6 if usar_painel else 1.0),
                     error_y=dict(type='data', symmetric=False,
-                                 array=[prev_es_hi - prev_es],
-                                 arrayminus=[prev_es - prev_es_lo],
-                                 color='#F97316', thickness=2, width=6),
+                                 array=[hi_g - y_temp], arrayminus=[y_temp - lo_g],
+                                 color='#F97316' if not usar_painel else '#64748b',
+                                 thickness=2, width=6) if not usar_painel else None,
                     hovertemplate=(
-                        f"<b>Previsão 2025</b><br>"
-                        f"{prev_nota}: <b>{prev_es:.1f}</b><br>"
-                        f"IC 95%: [{prev_es_lo:.1f} – {prev_es_hi:.1f}]"
-                        "<extra></extra>"
-                    ),
-                )
-                fig_prev.add_vrect(
-                    x0=2019.5, x1=2022.5,
-                    fillcolor="rgba(251,191,36,0.07)", layer="below", line_width=0,
-                )
+                        f"<b>Previsão 2025 — tendência</b><br>"
+                        f"{prev_nota}: <b>{y_temp:.1f}</b><br>"
+                        f"IC 95%: [{lo_g:.1f} – {hi_g:.1f}]<extra></extra>"
+                    ))
+                if usar_painel and y_panel is not None and pd.notna(y_panel):
+                    fig_prev.add_scatter(x=[ANO_PREV], y=[y_panel], mode='markers',
+                        name='Previsão 2025 (painel)',
+                        marker=dict(size=16, color='#A78BFA', symbol='star'),
+                        hovertemplate=(
+                            f"<b>Previsão 2025 — painel</b><br>"
+                            f"{prev_nota}: <b>{y_panel:.1f}</b><extra></extra>"
+                        ))
+                fig_prev.add_vrect(x0=2019.5, x1=2022.5,
+                    fillcolor="rgba(251,191,36,0.07)", layer="below", line_width=0)
                 fig_prev.update_layout(
                     plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#E2E8F0"), height=380,
+                    font=dict(color="#E2E8F0"), height=400,
                     xaxis=dict(tickmode='array', tickvals=anos_ext),
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.25),
-                )
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.28))
                 st.plotly_chart(fig_prev, use_container_width=True)
 
+            # ── Métricas ───────────────────────────────────────────
             mc1, mc2, mc3, mc4 = st.columns(4)
-            mc1.metric("Previsão ES 2025",  f"{prev_es:.1f}")
-            mc2.metric("IC 95% inferior",   f"{prev_es_lo:.1f}")
-            mc3.metric("IC 95% superior",   f"{prev_es_hi:.1f}")
-            mc4.metric("Tendência anual",   f"{sl_es:+.2f} pts/ano")
-            st.caption(f"R² do modelo ES = {r_es**2:.3f} | p-valor = {p_es:.4f} | n = {n_es} anos")
+            mc1.metric("Previsão principal 2025", f"{y_main:.1f}",
+                       help="Painel (indicadores + tendência) quando features ativas, senão só tendência.")
+            mc2.metric("IC 95% (tendência)", f"{lo_g:.1f} – {hi_g:.1f}")
+            mc3.metric("Tendência anual", f"{sl_g:+.2f} pts/ano")
+            mc4.metric("R² temporal", f"{r2_g:.3f}")
+            if usar_painel and r2_panel:
+                st.caption(f"Modelo de painel — R² = {r2_panel} | "
+                           f"features: Ano + {', '.join(feats_sel_labels)}")
 
+            # ── Tabela comparativa ─────────────────────────────────
             st.markdown("**Previsão 2025 por município:**")
-            cols_show = ['Município', f'Nota {anos_base[-1]} (real)', 'Previsão 2025',
-                         'IC inferior (95%)', 'IC superior (95%)', 'Tendência anual', 'R²']
+            cols_base = ['Município', f'Nota {anos_base[-1]}',
+                         'Previsão 2025 (tendência)', 'IC inferior (95%)', 'IC superior (95%)',
+                         'Tendência anual', 'R² temporal']
+            if usar_painel and 'Previsão 2025 (painel)' in df_prev.columns:
+                cols_base.insert(3, 'Previsão 2025 (painel)')
+            cols_show = [c for c in cols_base if c in df_prev.columns]
             st.dataframe(df_prev[cols_show], use_container_width=True, hide_index=True)
 
 # ─── TAB 5: EVOLUÇÃO TEMPORAL ────────────────────────────────────
