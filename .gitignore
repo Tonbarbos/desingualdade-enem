@@ -9,6 +9,7 @@ microdados_enem_*/
 ES-2023/
 *.pdf
 *.xlsx
+*.ods
 
 # (Opcional) Podemos ignorar os arquivos de extração originais, mas é bom commitar o código
 # Só suba o dados_compilados.csv que tem os 10KB prontinhos pro app!
