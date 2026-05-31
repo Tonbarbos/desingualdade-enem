@@ -2,9 +2,12 @@
 
 Painel interativo que analisa a relação entre desigualdade social e desempenho no ENEM 2024 nos 78 municípios do Espírito Santo, cruzando microdados do ENEM com indicadores socioeconômicos, gastos educacionais e qualidade do ensino.
 
-🔗 **[Acessar o painel](https://desingualdade-enem.streamlit.app)**
+🔗 **[Acessar o painel](https://desigualdade-enem.streamlit.app)**
 
 ---
+## Objetivo
+
+Este projeto tem como objetivo analisar como fatores socioeconômicos influenciam o desempenho educacional no ENEM, utilizando dados reais e técnicas estatísticas e de machine learning para gerar insights relevantes.
 
 ## O que o painel oferece
 
@@ -24,7 +27,22 @@ Painel interativo que analisa a relação entre desigualdade social e desempenho
 | SIOPE 2023 (FNDE) | Gastos educacionais municipais |
 | Censo Escolar 2023 (INEP) | IDEB, SAEB, rendimento escolar |
 
+## Metodologia
+
+- Análise exploratória de dados (EDA)
+- Cálculo de correlações (Pearson)
+- Modelos de regressão linear
+- Algoritmos de Machine Learning (K-Means e Random Forest)
+- Visualização interativa com Plotly
+
 ## Tecnologias
 
-Python · Streamlit · Plotly · scikit-learn · pandas
+Python · Streamlit · Plotly · Scikit-learn · Pandas
 
+## Integrantes do Grupo
+
+- **[Ana Luiza Menelli Taylor](https://github.com/analuizataylor)**
+- **[Danton Barbosa](https://github.com/Tonbarbos)**
+- **[Felipe Valério Rocha](https://github.com/felipevaleriorocha)**
+- **[Karoliny Franco](https://github.com/karolinyfranco)**
+- **[Gustavo Rissoli](https://github.com/Gustavo-Rissoli)**

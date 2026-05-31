@@ -8,41 +8,179 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.decomposition import PCA
 
-st.set_page_config(page_title="Desigualdade vs ENEM no ES", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Desigualdade vs ENEM no ES", page_icon=":material/school:", layout="wide")
 
 st.markdown("""
 <style>
-    .main { background-color: #0E1117; font-family: 'Inter', sans-serif; }
-    h1, h2, h3 { color: #E2E8F0; font-weight: 700; }
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
+            
+    .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined' !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        font-size: 24px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        -webkit-font-feature-settings: 'liga' !important;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Base ── */
+    html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+    .main { background-color: #080D14; }
+
+    /* ── Tipografia global ── */
+    h1 { color: #F1F5F9; font-weight: 700; letter-spacing: -0.5px; }
+    h2, h3, h4 { color: #E2E8F0; font-weight: 600; }
+    p, li { color: #94A3B8; line-height: 1.7; }
+
+    /* ── Cabeçalho do app ── */
+    .app-header {
+        background: linear-gradient(135deg, rgba(14,22,36,0.95) 0%, rgba(15,28,50,0.95) 100%);
+        border: 1px solid rgba(56,189,248,0.15);
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 28px;
+        position: relative;
+        overflow: hidden;
+    }
+    .app-header::before {
+        content: '';
+        position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, #0EA5E9, #38BDF8, #7DD3FC, #38BDF8, #0EA5E9);
+        background-size: 200% 100%;
+        animation: shimmer 3s linear infinite;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .app-header h1 { margin: 0 0 8px 0; font-size: 1.6rem; }
+    .app-header p  { margin: 0; font-size: 0.92rem; color: #64748B; }
+
+    /* ── Cards de métricas ── */
     .metric-card {
-        background: rgba(30,41,59,0.7); backdrop-filter: blur(10px);
-        border-radius: 12px; padding: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin-bottom: 20px;
-        border: 1px solid rgba(255,255,255,0.1); transition: transform 0.2s ease;
+        background: linear-gradient(145deg, rgba(15,23,42,0.9), rgba(20,30,50,0.9));
+        backdrop-filter: blur(12px);
+        border-radius: 14px;
+        padding: 22px 20px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+        margin-bottom: 16px;
+        border: 1px solid rgba(255,255,255,0.07);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        position: relative;
+        overflow: hidden;
     }
-    .metric-card:hover { transform: translateY(-5px); }
-    .metric-title { color: #94A3B8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
-    .metric-value { color: #38BDF8; font-size: 2rem; font-weight: bold; margin-top: 10px; }
-    .metric-sub   { color: #64748b; font-size: 0.8rem; margin-top: 5px; }
+    .metric-card::after {
+        content: '';
+        position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(56,189,248,0.4), transparent);
+    }
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+        border-color: rgba(56,189,248,0.2);
+    }
+    .metric-icon  { font-size: 1.4rem; margin-bottom: 10px; opacity: 0.85; }
+    .metric-title { color: #64748B; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+    .metric-value { color: #38BDF8; font-size: 2rem; font-weight: 700; margin-top: 6px; font-family: 'DM Mono', monospace; letter-spacing: -1px; }
+    .metric-sub   { color: #475569; font-size: 0.78rem; margin-top: 4px; }
+
+    /* ── Caixas de estatísticas ── */
     .stat-box {
-        background: rgba(30,41,59,0.5); border-radius: 8px; padding: 14px;
-        border: 1px solid rgba(255,255,255,0.08); margin-top: 8px;
+        background: rgba(15,23,42,0.6);
+        border-radius: 10px;
+        padding: 14px 16px;
+        border: 1px solid rgba(255,255,255,0.06);
+        margin-top: 8px;
+        transition: border-color 0.2s;
     }
-    .filter-banner {
-        background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3);
-        border-radius: 10px; padding: 12px 18px; margin-bottom: 16px;
-        color: #94A3B8; font-size: 0.9rem;
-    }
+    .stat-box:hover { border-color: rgba(56,189,248,0.2); }
+
+    /* ── Banners de alerta / info ── */
     .warn-banner {
-        background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3);
-        border-radius: 10px; padding: 12px 18px; margin-bottom: 8px;
-        color: #94A3B8; font-size: 0.85rem;
+        background: rgba(234,179,8,0.08);
+        border: 1px solid rgba(234,179,8,0.25);
+        border-left: 3px solid rgba(234,179,8,0.7);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        color: #A3A39E;
+        font-size: 0.85rem;
+        line-height: 1.6;
     }
     .info-banner {
-        background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3);
-        border-radius: 10px; padding: 12px 18px; margin-bottom: 8px;
-        color: #94A3B8; font-size: 0.85rem;
+        background: rgba(99,102,241,0.07);
+        border: 1px solid rgba(99,102,241,0.2);
+        border-left: 3px solid rgba(99,102,241,0.6);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        color: #A3A3B8;
+        font-size: 0.85rem;
+        line-height: 1.6;
     }
+    .filter-banner {
+        background: rgba(56,189,248,0.07);
+        border: 1px solid rgba(56,189,248,0.2);
+        border-left: 3px solid rgba(56,189,248,0.6);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        color: #94A3B8;
+        font-size: 0.88rem;
+        line-height: 1.6;
+    }
+
+    /* ── Separadores de seção ── */
+    .section-divider {
+        display: flex; align-items: center; gap: 12px;
+        margin: 28px 0 20px 0;
+    }
+    .section-divider-line {
+        flex: 1; height: 1px;
+        background: linear-gradient(90deg, rgba(56,189,248,0.3), transparent);
+    }
+
+    /* ── Filtros ── */
+    .filter-section {
+        background: rgba(15,23,42,0.6);
+        border-radius: 12px;
+        padding: 20px 24px;
+        border: 1px solid rgba(255,255,255,0.06);
+        margin-bottom: 20px;
+    }
+
+    /* ── Rótulos dos inputs ── */
+    .input-label {
+        color: #64748B;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    /* ── Streamlit overrides ── */
+    .stRadio > label { color: #94A3B8 !important; font-size: 0.85rem !important; }
+    div[data-testid="stMetricValue"] { font-family: 'DM Mono', monospace !important; }
+    .stTabs [data-baseweb="tab-list"] { gap: 4px; background: rgba(15,23,42,0.8); border-radius: 10px; padding: 4px; }
+    .stTabs [data-baseweb="tab"] { border-radius: 8px; padding: 8px 16px; color: #64748B; font-size: 0.88rem; }
+    .stTabs [aria-selected="true"] { background: rgba(56,189,248,0.15) !important; color: #38BDF8 !important; font-weight: 600; }
+    [data-testid="stSidebar"] { background: rgba(10,18,30,0.95); }
+    .stDataFrame { border-radius: 10px; overflow: hidden; }
+    div[data-testid="stExpander"] { border: 1px solid rgba(255,255,255,0.07) !important; border-radius: 10px !important; }
+    .streamlit-expanderHeader { font-size: 0.9rem !important; }
+    hr { border-color: rgba(255,255,255,0.06) !important; margin: 24px 0 !important; }
+
+    /* ── Scroll customizado ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15,23,42,0.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(56,189,248,0.5); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,15 +195,16 @@ for key, default in {
         st.session_state[key] = default
 
 # ── FILTROS GLOBAIS ───────────────────────────────────────────────
-st.title("🎓 Desigualdade Social e Desempenho no ENEM — Espírito Santo 2024")
-st.markdown(
-    "Análise exploratória das notas do **ENEM 2024** nos municípios do ES, "
-    "cruzadas com indicadores socioeconômicos (Atlas Brasil / Censo 2010) "
-    "e gastos educacionais municipais (SIOPE 2023)."
-)
+st.markdown("""
+<div class="app-header">
+    <h1>Desigualdade Social e Desempenho no ENEM — Espírito Santo 2024</h1>
+    <p>Análise exploratória das notas do ENEM 2024 nos municípios do ES, cruzadas com indicadores socioeconômicos
+    (Atlas Brasil / Censo 2010) e gastos educacionais municipais (SIOPE 2023).</p>
+</div>
+""", unsafe_allow_html=True)
 
 tipo_escola = st.radio(
-    "🏫 Candidatos incluídos:",
+    ":material/school: Candidatos incluídos:",
     ["Apenas escola pública", "Pública + Privada (todos)"],
     horizontal=True,
     key="tipo_escola",
@@ -89,23 +228,41 @@ tipo_escola = st.radio(
 
 arquivo = "dados_publico.csv" if tipo_escola == "Apenas escola pública" else "dados_todos.csv"
 
+ # FIX 7: leitura segura dos arquivos CSV com tratamento de erros de importação
 @st.cache_data
-def load_data(path):
+def load_csv_data(path):
     try:
-        return pd.read_csv(path)
+        dados = pd.read_csv(path)
+
+        if dados.empty:
+            return None, f"O arquivo **{path}** foi encontrado, mas está vazio."
+
+        return dados, None
+
     except FileNotFoundError:
-        return None
+        return None, f"Arquivo **{path}** não encontrado."
 
-df_raw = load_data(arquivo)
+    except pd.errors.EmptyDataError:
+        return None, f"O arquivo **{path}** está vazio ou não possui dados válidos."
 
-if df_raw is None:
-    st.error(f"Arquivo **{arquivo}** não encontrado. Execute `process_duplo.py` para gerar os dados.")
+    except pd.errors.ParserError:
+        return None, f"Não foi possível interpretar o arquivo **{path}**. Verifique se o CSV está bem formatado."
+
+    except Exception as erro:
+        return None, f"Erro inesperado ao carregar o arquivo **{path}**: {erro}"
+
+
+df_raw, erro_dados = load_csv_data(arquivo)
+
+if erro_dados:
+    st.error(erro_dados)
+    st.info("Execute `process_duplo.py` para gerar os arquivos `dados_publico.csv` e `dados_todos.csv`.")
     st.stop()
 
 st.markdown("---")
 min_cand = st.slider(
-    "👥 Mínimo de candidatos por município:",
-    min_value=10, max_value=300, value=st.session_state['min_cand'], step=10,
+    ":material/group: Mínimo de candidatos por município:",
+    min_value=10, max_value=300, step=10,
     key="min_cand",
     help="Municípios com poucos candidatos têm nota média instável e podem distorcer correlações."
 )
@@ -115,7 +272,7 @@ excluidos = len(df_raw) - len(df)
 
 if excluidos > 0:
     st.markdown(
-        f'<div class="warn-banner">⚠️ <b>{excluidos} município(s) excluído(s)</b> por ter menos de {min_cand} candidatos. '
+        f'<div class="warn-banner"><span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.1em;">warning</span> <b>{excluidos} município(s) excluído(s)</b> por ter menos de {min_cand} candidatos. '
         f'Restam <b>{len(df)} municípios</b> na análise. '
         f'<b>Atenção:</b> filtros muito altos podem deixar poucos municípios e tornar correlações instáveis.</div>',
         unsafe_allow_html=True
@@ -202,38 +359,38 @@ def sig_icon(p):
 # ── CARDS DE OVERVIEW ─────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Municípios Analisados</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">map</span></div><div class="metric-title">Municípios Analisados</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Total de Candidatos</div><div class="metric-value">{int(df["QTD_CANDIDATOS"].sum()):,}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">person</span></div><div class="metric-title">Total de Candidatos</div><div class="metric-value">{int(df["QTD_CANDIDATOS"].sum()):,}</div></div>', unsafe_allow_html=True)
 with c3:
     idx = df["NOTA_MEDIA"].idxmax()
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Maior Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">emoji_events</span></div><div class="metric-title">Maior Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
 with c4:
     idx = df["NOTA_MEDIA"].idxmin()
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Menor Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-icon"><span class="material-symbols-outlined">trending_down</span></div><div class="metric-title">Menor Nota Média</div><div class="metric-value">{df.loc[idx,"NOTA_MEDIA"]:.1f}</div><div class="metric-sub">{df.loc[idx,"Nome_Municipio"]}</div></div>', unsafe_allow_html=True)
 
 # ── DADOS TEMPORAIS (carregados uma vez, sem depender do filtro de escola) ──
+# ALTERAÇÃO: leitura segura do CSV temporal usando o mesmo tratamento de erros
 @st.cache_data
 def load_temporal():
-    try:
-        return pd.read_csv("dados_temporal.csv")
-    except FileNotFoundError:
-        return None
+    dados_temporais, erro_temporal = load_csv_data("dados_temporal.csv")
+    return dados_temporais, erro_temporal
 
-df_temporal = load_temporal()
+
+df_temporal, erro_temporal = load_temporal()
 
 # ── ABAS ──────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Explorador de Correlação",
-    "🧪 Testes Estatísticos",
-    "🎯 Outliers e Distribuição",
-    "🤖 Machine Learning",
-    "📈 Evolução Temporal",
+    ":material/scatter_plot: Explorador de Correlação",
+    ":material/science: Testes Estatísticos",
+    ":material/manage_search: Outliers e Distribuição",
+    ":material/smart_toy: Machine Learning",
+    ":material/timeline: Evolução Temporal",
 ])
 
 # ─── TAB 1 ────────────────────────────────────────────────────────
 with tab1:
-    st.markdown("### 📊 Explorador de Correlação")
+    st.markdown("### :material/analytics: Explorador de Correlação")
     st.markdown("Selecione dois indicadores para visualizar a relação entre eles. O tamanho dos pontos representa o número de candidatos.")
 
     cx, cy = st.columns(2)
@@ -286,7 +443,7 @@ with tab1:
         if 'EDU_Perc_Aplicacao' in df.columns:
             abaixo = (df['EDU_Perc_Aplicacao'] < 25).sum()
             st.markdown(
-                f'<div class="info-banner">ℹ️ <b>% de Impostos Aplicados em Educação:</b> '
+                f'<div class="info-banner"><span class="material-symbols-outlined" style="vertical-align: middle; font-size: 1.1em;">info</span> <b>% de Impostos Aplicados em Educação:</b> '
                 f'A Constituição Federal exige mínimo de <b>25%</b> para municípios. '
                 f'No ES 2023: mín {df["EDU_Perc_Aplicacao"].min():.1f}% | '
                 f'máx {df["EDU_Perc_Aplicacao"].max():.1f}% | '
@@ -355,7 +512,7 @@ with tab1:
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### 🗃️ Dados por Município")
+    st.markdown("### :material/folder_open: Dados por Município")
     disp = [c for c in ['Nome_Municipio', 'QTD_CANDIDATOS', 'PERC_ESCOLA_PUB', 'NOTA_MEDIA',
                          'IDHM', 'IDHM_R', 'IDHM_E', 'GINI', 'TX_ANALF', 'NEET_VULN',
                          'IVCAD', 'IVCAD_DR', 'IVCAD_TQA',
@@ -365,7 +522,7 @@ with tab1:
                  use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    st.markdown("### 🌡️ Matriz de Correlação entre Indicadores")
+    st.markdown("### :material/grid_view: Matriz de Correlação entre Indicadores")
     st.markdown("Valores próximos de **+1** = correlação positiva forte; **-1** = negativa forte; **0** = sem relação.")
 
     grupos = st.multiselect("Grupos a incluir:", list(INDICATORS_DICT.keys()),
@@ -395,7 +552,7 @@ with tab2:
     st.markdown("### 🧪 Testes Estatísticos")
 
     # Regressão Linear
-    st.markdown("#### 📈 Regressão Linear Simples")
+    st.markdown("#### :material/show_chart: Regressão Linear Simples")
     r_c1, r_c2 = st.columns(2)
     with r_c1:
         reg_cats_x = [c for c in INDICATORS_DICT if c != 'NOTAS DO ENEM']
@@ -458,7 +615,7 @@ with tab2:
     st.markdown("---")
 
     # Teste t
-    st.markdown("#### 🔬 Teste t — Comparação de Grupos")
+    st.markdown("#### :material/biotech: Teste t — Comparação de Grupos")
     st.markdown("Compara a nota média entre municípios com **alto** e **baixo** valor de um indicador (divisão pela mediana).")
 
     t_c1, t_c2 = st.columns(2)
@@ -506,7 +663,7 @@ with tab2:
     st.markdown("---")
 
     # Tabela completa de correlações
-    st.markdown("#### 📋 Tabela de Correlações com a Nota Média Geral")
+    st.markdown("#### :material/table: Tabela de Correlações com a Nota Média Geral")
     rows = []
     for cat, items in INDICATORS_DICT.items():
         if cat == 'NOTAS DO ENEM': continue
@@ -524,7 +681,7 @@ with tab2:
 
 # ─── TAB 3 ────────────────────────────────────────────────────────
 with tab3:
-    st.markdown("### 🎯 Detecção de Outliers e Distribuição")
+    st.markdown("### :material/track_changes: Detecção de Outliers e Distribuição")
 
     # FIX 4: opção de método de detecção de outliers
     met_col, out_col_sel = st.columns([1, 3])
@@ -608,7 +765,7 @@ with tab3:
 
 # ─── TAB 4: MACHINE LEARNING ─────────────────────────────────────
 with tab4:
-    st.markdown("### 🤖 Machine Learning — Agrupamento e Importância de Variáveis")
+    st.markdown("### :material/smart_toy: Machine Learning — Agrupamento e Importância de Variáveis")
     st.markdown(
         "Aplicação de dois algoritmos de Machine Learning: "
         "**K-Means** para agrupar municípios em perfis socioeconômicos semelhantes "
@@ -633,7 +790,7 @@ with tab4:
 
     # ── SEÇÃO 1: K-MEANS ─────────────────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🎯 K-Means — Agrupamento de Municípios em Perfis")
+    st.markdown("#### :material/track_changes: K-Means — Agrupamento de Municípios em Perfis")
     st.markdown(
         "O algoritmo K-Means agrupa municípios com características socioeconômicas e de desempenho "
         "semelhantes em **clusters**. Cada cluster representa um perfil distinto de município no ES."
@@ -711,7 +868,7 @@ with tab4:
 
     # ── SEÇÃO 2: RANDOM FOREST ───────────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🌲 Random Forest — Importância das Variáveis")
+    st.markdown("#### :material/forest: Random Forest — Importância das Variáveis")
     st.markdown(
         "O Random Forest é um modelo de ensemble que ranqueia quais variáveis "
         "mais influenciam a nota do ENEM. Diferente da correlação simples, ele "
@@ -782,7 +939,7 @@ with tab4:
 
     # ── SEÇÃO 3: Previsão 2025 ────────────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🔮 Previsão para o ENEM 2025")
+    st.markdown("#### :material/online_prediction: Previsão para o ENEM 2025")
     st.markdown(
         "Regressão linear temporal aplicada à série histórica 2016–2024 de cada município. "
         "A tendência é extrapolada para 2025 com intervalo de confiança de 95%."
@@ -795,7 +952,7 @@ with tab4:
     )
 
     if df_temporal is None:
-        st.info("Execute `python process_temporal.py` para habilitar a previsão 2025.")
+        st.info(erro_temporal or "Execute `python process_temporal.py` para habilitar a previsão 2025.")
     else:
         from scipy.stats import t as t_dist
         from sklearn.linear_model import Ridge
@@ -1028,7 +1185,7 @@ with tab4:
 
 # ─── TAB 5: EVOLUÇÃO TEMPORAL ────────────────────────────────────
 with tab5:
-    st.markdown("### 📈 Evolução Temporal das Notas — ENEM 2012–2024")
+    st.markdown("### :material/trending_up: Evolução Temporal das Notas — ENEM 2012–2024")
     st.markdown(
         "Análise da evolução das notas médias no ENEM ao longo de 13 anos "
         "nos municípios do Espírito Santo. Permite identificar tendências, "
@@ -1037,8 +1194,8 @@ with tab5:
 
     if df_temporal is None:
         st.warning(
-            "Arquivo **dados_temporal.csv** não encontrado. "
-            "Execute `python process_temporal.py` para gerar os dados históricos."
+            erro_temporal or
+            "Arquivo **dados_temporal.csv** não encontrado. Execute `python process_temporal.py` para gerar os dados históricos."
         )
         st.code("python process_temporal.py", language="bash")
         st.stop()
@@ -1066,7 +1223,7 @@ with tab5:
 
     # ── SEÇÃO 1: Evolução por município selecionado ───────────────
     st.markdown("---")
-    st.markdown("#### 🏙️ Comparar Municípios ao Longo do Tempo")
+    st.markdown("#### :material/location_city: Comparar Municípios ao Longo do Tempo")
 
     # Municípios com dados em pelo menos 8 anos (série mais completa)
     muns_completos = (
@@ -1212,7 +1369,7 @@ with tab5:
 
     # ── SEÇÃO 2: Evolução por perfil de desenvolvimento ──────────
     st.markdown("---")
-    st.markdown("#### 🏘️ Evolução Média por Perfil de Desenvolvimento (IDHM)")
+    st.markdown("#### :material/holiday_village: Evolução Média por Perfil de Desenvolvimento (IDHM)")
     st.markdown(
         "Municípios agrupados em 4 quartis de IDHM (dados Atlas Brasil 2010). "
         "Permite identificar se a desigualdade de desempenho aumentou ou diminuiu ao longo dos anos "
@@ -1282,7 +1439,7 @@ with tab5:
 
     # ── SEÇÃO 3: Ranking de evolução ─────────────────────────────
     st.markdown("---")
-    st.markdown("#### 🏆 Municípios que Mais Evoluíram / Regrediram")
+    st.markdown("#### :material/emoji_events: Municípios que Mais Evoluíram / Regrediram")
 
     # Modo grupo = média de múltiplos anos; modo par = dois anos específicos
     GRUPO_A = [2012, 2014, 2015, 2016, 2017, 2018]   # pré-pandemia (2013 excluído: anomalia TRI)
@@ -1388,4 +1545,3 @@ with tab5:
     )
     fig_evo.add_vline(x=0, line_dash="dash", line_color="#94A3B8")
     st.plotly_chart(fig_evo, use_container_width=True)
-
