@@ -5,6 +5,11 @@ Painel interativo que analisa a relação entre desigualdade social e desempenho
 🔗 **[Acessar o painel](https://desigualdade-enem.streamlit.app)**
 
 ---
+## Vídeo MVP
+
+**Link para o vídeo:** https://youtu.be/LrQjvsu27g0
+
+---
 ## Objetivo
 
 Este projeto tem como objetivo analisar como fatores socioeconômicos influenciam o desempenho educacional no ENEM, utilizando dados reais e técnicas estatísticas e de machine learning para gerar insights relevantes.
